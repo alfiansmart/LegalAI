@@ -76,7 +76,29 @@ curl -X POST http://localhost:8000/chat \
 open http://localhost:3000
 ```
 
-## Verifikasi Phase 1 & 2
+## Pengalaman pengguna — "Claude Code untuk lawyer"
+
+Bukan drag-and-drop DAG. Anda mengobrol dengan agent dan memandu lewat
+**slash command**:
+
+```
+/find syarat sah perjanjian        → peraturan_search
+/cite Pasal 1320 KUHPerdata        → pasal_lookup (teks eksak)
+/explain Pasal 1338 KUHPerdata     → bahasa awam
+/draft nda parties=PT A;PT B;…     → contract_draft → Document
+/review                            → tempel kontrak setelah perintah
+/memo wanprestasi vendor IT        → peraturan_search + legal_memo
+/plan tolong analisa PKWT ini      → rencana dulu, baru jalankan
+/agent reviewer                    → ganti persona untuk pesan ini
+/help                              → daftar lengkap
+/clear                             → sesi baru
+```
+
+Setiap balasan menampilkan **chip tool-use** (apa yang dipanggil, args,
+ringkasan hasil) dan **chip kutipan pasal** (hover untuk preview teks
+ayat). Citation yang gagal ter-resolve ditandai ⚠ (hallucination guard).
+
+## Verifikasi Phase 1, 2 & 3
 
 - **Phase 1**: `GET /corpus/stats` → `peraturan ≥ 4`, `embedded > 0`.
   `POST /search {"q":"syarat sah perjanjian"}` → Pasal 1320 KUHPerdata
@@ -92,9 +114,16 @@ open http://localhost:3000
 - **Phase 2 — editor & export**: buka `/documents/{id}`, edit di TipTap,
   klik *Export .docx*.
 
+- **Phase 3 — Claude-Code UX**:
+  - `/help` listing semua command, `/clear` mulai sesi baru.
+  - `/find Pasal 1320` di chat → palette muncul, balasan
+    menampilkan chip `peraturan_search` (klik untuk args + ringkasan).
+  - Toggle *Plan-mode: ON* → agent emit rencana dulu sebelum eksekusi.
+  - `/flows` di-rename `Playbooks` (read-only, dipanggil via chat).
+
 ## Status
 
-Phase 2 — drafting & review (live). Lihat
+Phase 3 — Claude-Code UX untuk lawyer (live). Lihat
 [`/root/.claude/plans/learn-about-https-github-com-anvie-evoni-joyful-dijkstra.md`](.)
 untuk peta jalan lengkap.
 

@@ -54,7 +54,12 @@ class AgentHarness:
     # Public entrypoint
     # ------------------------------------------------------------------
 
-    async def run(self, user_message: str, as_of: str | None = None) -> HarnessResult:
+    async def run(
+        self,
+        user_message: str,
+        as_of: str | None = None,
+        plan_mode: bool = False,
+    ) -> HarnessResult:
         if not _settings.anthropic_api_key:
             return HarnessResult(
                 session_id=self.session_id,
@@ -76,6 +81,19 @@ class AgentHarness:
         await self._ensure_session()
         await self._persist_turn("user", user_message)
 
+        # ── Plan mode: emit a plan first (no tools), return it for review.
+        if plan_mode:
+            plan_text = await self._emit_plan(
+                client, user_message, system_blocks, tools_list=tools
+            )
+            await self._persist_turn("assistant", plan_text)
+            return HarnessResult(
+                session_id=self.session_id,
+                reply=plan_text,
+                citations=[],
+                trace=[{"event": "plan", "summary": plan_text[:240]}],
+            )
+
         final_text = ""
         for turn in range(_settings.max_agent_turns):
             kwargs: dict[str, Any] = {
@@ -88,7 +106,7 @@ class AgentHarness:
                 kwargs["tools"] = tools
 
             resp = await client.messages.create(**kwargs)
-            self.trace.append({"turn": turn, "stop_reason": resp.stop_reason})
+            self.trace.append({"event": "turn", "turn": turn, "stop_reason": resp.stop_reason})
 
             assistant_content: list[dict] = []
             tool_uses = []
@@ -116,9 +134,11 @@ class AgentHarness:
                 result = await self._execute_tool(tu.name, dict(tu.input))
                 self.trace.append(
                     {
-                        "tool": tu.name,
+                        "event": "tool",
+                        "name": tu.name,
                         "args": dict(tu.input),
                         "result_summary": _summarize(result),
+                        "status": result.get("status", "ok") if isinstance(result, dict) else "ok",
                     }
                 )
                 tool_results.append(
@@ -139,6 +159,35 @@ class AgentHarness:
             citations=citations,
             trace=self.trace,
         )
+
+    # ------------------------------------------------------------------
+    # Plan mode
+    # ------------------------------------------------------------------
+
+    async def _emit_plan(
+        self,
+        client,
+        user_message: str,
+        system_blocks: list[dict],
+        tools_list: list[dict],
+    ) -> str:
+        tool_names = ", ".join(t["name"] for t in tools_list) or "(tidak ada tool)"
+        plan_instructions = (
+            "MODE: plan. Jangan eksekusi tool apa pun. Tulis rencana langkah "
+            "demi langkah untuk menjawab permintaan pengguna. Format:\n"
+            "1. <langkah singkat> — *tool*: <nama_tool> atau (jawab langsung)\n"
+            "...\n"
+            f"Tool yang tersedia: {tool_names}.\n"
+            f"Permintaan: {user_message}"
+        )
+        resp = await client.messages.create(
+            model=_settings.anthropic_model_fast,
+            max_tokens=1024,
+            system=system_blocks,
+            messages=[{"role": "user", "content": plan_instructions}],
+        )
+        parts = [b.text for b in resp.content if getattr(b, "type", None) == "text"]
+        return "**Rencana:**\n\n" + ("\n".join(parts).strip() or "_(rencana kosong)_")
 
     # ------------------------------------------------------------------
     # System prompt assembly (with prompt-caching)

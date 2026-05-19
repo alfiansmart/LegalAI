@@ -10,9 +10,9 @@ export default function HomePage() {
       </p>
       <div className="grid grid-cols-2 gap-4">
         {[
-          { href: "/chat", title: "Chat", desc: "Tanya jawab peraturan dengan kutipan pasal terverifikasi." },
-          { href: "/flows", title: "Flow Builder", desc: "Susun SOP hukum sebagai DAG visual." },
-          { href: "/documents", title: "Dokumen", desc: "Draft & review perjanjian dengan redlining." },
+          { href: "/chat", title: "Chat", desc: "Tanya jawab peraturan + slash command (/draft, /review, /cite, …)." },
+          { href: "/documents", title: "Dokumen", desc: "Draft & review perjanjian dengan editor + export .docx." },
+          { href: "/flows", title: "Playbooks", desc: "Resep SOP hukum yang dipanggil lewat chat." },
           { href: "/admin", title: "Admin", desc: "Kelola agent, skill, dan corpus." },
         ].map((c) => (
           <Link key={c.href} href={c.href}

@@ -14,8 +14,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <Link href="/" className="font-semibold">LegalAI</Link>
           <nav className="flex gap-4 text-sm opacity-80">
             <Link href="/chat">Chat</Link>
-            <Link href="/flows">Flows</Link>
-            <Link href="/documents">Documents</Link>
+            <Link href="/documents">Dokumen</Link>
+            <Link href="/flows">Playbooks</Link>
             <Link href="/admin">Admin</Link>
           </nav>
         </header>
