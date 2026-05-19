@@ -1,0 +1,32 @@
+{
+  "slug": "draft_nda",
+  "name": "Draft NDA",
+  "description": "Kumpulkan para pihak → pilih template NDA → isi → review → human approval → export .docx.",
+  "inputs": {
+    "type": "object",
+    "properties": {
+      "disclosing_party": {"type": "object"},
+      "receiving_party": {"type": "object"},
+      "purpose": {"type": "string"},
+      "duration_months": {"type": "integer", "default": 24}
+    },
+    "required": ["disclosing_party", "receiving_party", "purpose"]
+  },
+  "nodes": [
+    {"id": "n1", "type": "skill", "skill": "contract_draft", "tool": "contract_draft",
+     "args": {"template_id": "nda_id", "parties": ["$inputs.disclosing_party", "$inputs.receiving_party"],
+              "params": {"purpose": "$inputs.purpose", "duration_months": "$inputs.duration_months"},
+              "include_clauses": ["force_majeure", "arbitrase_bani", "choice_of_law"]}},
+    {"id": "n2", "type": "skill", "skill": "contract_review", "tool": "contract_review",
+     "args": {"document_id": "$n1.document_id", "compliance_against": ["UU 27/2022"]}},
+    {"id": "n3", "type": "tool", "tool": "human_approval",
+     "args": {"question": "Setujui draft NDA untuk diekspor?", "options": ["approve", "revise"]}},
+    {"id": "n4", "type": "tool", "tool": "document_export",
+     "args": {"document_id": "$n1.document_id", "format": "docx"}}
+  ],
+  "edges": [
+    {"from": "n1", "to": "n2"},
+    {"from": "n2", "to": "n3"},
+    {"from": "n3", "to": "n4", "when": "$n3.choice == 'approve'"}
+  ]
+}

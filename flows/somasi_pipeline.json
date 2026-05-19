@@ -1,0 +1,35 @@
+{
+  "slug": "somasi_pipeline",
+  "name": "Somasi Pipeline",
+  "description": "Fakta → cek dasar hukum → draft somasi → review → export PDF.",
+  "inputs": {
+    "type": "object",
+    "properties": {
+      "klien": {"type": "object"},
+      "tergugat": {"type": "object"},
+      "fakta": {"type": "string"},
+      "tuntutan": {"type": "string"}
+    },
+    "required": ["klien", "tergugat", "fakta", "tuntutan"]
+  },
+  "nodes": [
+    {"id": "n1", "type": "skill", "skill": "peraturan_search", "tool": "peraturan_search",
+     "args": {"q": "$inputs.fakta", "k": 8}},
+    {"id": "n2", "type": "skill", "skill": "contract_draft", "tool": "contract_draft",
+     "args": {"template_id": "somasi", "parties": ["$inputs.klien", "$inputs.tergugat"],
+              "params": {"fakta": "$inputs.fakta", "tuntutan": "$inputs.tuntutan",
+                         "dasar_hukum": "$n1.hits"}}},
+    {"id": "n3", "type": "skill", "skill": "contract_review", "tool": "contract_review",
+     "args": {"document_id": "$n2.document_id"}},
+    {"id": "n4", "type": "tool", "tool": "human_approval",
+     "args": {"question": "Kirim somasi seperti ini?", "options": ["approve", "revise"]}},
+    {"id": "n5", "type": "tool", "tool": "document_export",
+     "args": {"document_id": "$n2.document_id", "format": "pdf"}}
+  ],
+  "edges": [
+    {"from": "n1", "to": "n2"},
+    {"from": "n2", "to": "n3"},
+    {"from": "n3", "to": "n4"},
+    {"from": "n4", "to": "n5", "when": "$n4.choice == 'approve'"}
+  ]
+}

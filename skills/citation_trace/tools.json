@@ -1,0 +1,20 @@
+[
+  {
+    "id": "citation_trace",
+    "name": "citation_trace",
+    "description": "Walk the citation graph k hops from a given Pasal.",
+    "function": {
+      "name": "citation_trace",
+      "description": "Returns inbound + outbound citations and amendment chain.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "pasal_id": {"type": "integer"},
+          "hops": {"type": "integer", "default": 2},
+          "direction": {"type": "string", "enum": ["in", "out", "both"], "default": "both"}
+        },
+        "required": ["pasal_id"]
+      }
+    }
+  }
+]

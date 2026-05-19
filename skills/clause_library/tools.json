@@ -1,0 +1,30 @@
+[
+  {
+    "id": "clause_get",
+    "name": "clause_get",
+    "description": "Ambil teks klausa baku berdasarkan slug.",
+    "function": {
+      "name": "clause_get",
+      "description": "Return a named standard clause.",
+      "parameters": {
+        "type": "object",
+        "properties": {"slug": {"type": "string"}},
+        "required": ["slug"]
+      }
+    }
+  },
+  {
+    "id": "clause_search",
+    "name": "clause_search",
+    "description": "Cari klausa berdasarkan kueri natural.",
+    "function": {
+      "name": "clause_search",
+      "description": "Semantic search over the clause library.",
+      "parameters": {
+        "type": "object",
+        "properties": {"q": {"type": "string"}, "k": {"type": "integer", "default": 5}},
+        "required": ["q"]
+      }
+    }
+  }
+]

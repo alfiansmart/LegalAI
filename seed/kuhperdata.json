@@ -1,0 +1,51 @@
+{
+  "jenis": "KUHPerdata",
+  "nomor": null,
+  "tahun": 1847,
+  "judul": "Kitab Undang-Undang Hukum Perdata (Burgerlijk Wetboek)",
+  "tentang": "Hukum perdata Indonesia",
+  "status": "berlaku",
+  "penerbit": "Hindia Belanda (diadopsi RI)",
+  "source_url": "https://peraturan.bpk.go.id/Details/47406/uu-no--",
+  "pasal": [
+    {
+      "nomor": "1313",
+      "teks": "Suatu perjanjian adalah suatu perbuatan dengan mana satu orang atau lebih mengikatkan dirinya terhadap satu orang lain atau lebih.",
+      "ayat": []
+    },
+    {
+      "nomor": "1320",
+      "teks": "Untuk sahnya suatu perjanjian diperlukan empat syarat:",
+      "ayat": [
+        {"nomor": "1", "teks": "sepakat mereka yang mengikatkan dirinya;"},
+        {"nomor": "2", "teks": "kecakapan untuk membuat suatu perikatan;"},
+        {"nomor": "3", "teks": "suatu hal tertentu;"},
+        {"nomor": "4", "teks": "suatu sebab yang halal."}
+      ]
+    },
+    {
+      "nomor": "1338",
+      "teks": "",
+      "ayat": [
+        {"nomor": "1", "teks": "Semua perjanjian yang dibuat secara sah berlaku sebagai undang-undang bagi mereka yang membuatnya."},
+        {"nomor": "2", "teks": "Persetujuan-persetujuan itu tidak dapat ditarik kembali selain dengan sepakat kedua belah pihak, atau karena alasan-alasan yang oleh undang-undang dinyatakan cukup untuk itu."},
+        {"nomor": "3", "teks": "Persetujuan-persetujuan harus dilaksanakan dengan itikad baik."}
+      ]
+    },
+    {
+      "nomor": "1244",
+      "teks": "Debitur harus dihukum mengganti biaya, kerugian dan bunga, bila ia tidak dapat membuktikan bahwa tidak dilaksanakannya perikatan itu atau tidak tepatnya waktu dalam melaksanakan perikatan itu disebabkan oleh suatu hal yang tidak terduga, yang tidak dapat dipertanggungkan kepadanya, walaupun tidak ada itikad buruk kepadanya.",
+      "ayat": []
+    },
+    {
+      "nomor": "1245",
+      "teks": "Tidak ada penggantian biaya, kerugian dan bunga, bila karena keadaan memaksa atau karena hal yang terjadi secara kebetulan, debitur terhalang untuk memberikan atau berbuat sesuatu yang diwajibkan, atau melakukan suatu perbuatan yang terlarang baginya.",
+      "ayat": []
+    },
+    {
+      "nomor": "1249",
+      "teks": "Jika dalam suatu perikatan ditentukan, bahwa pihak yang lalai memenuhinya, sebagai ganti rugi harus membayar suatu jumlah uang tertentu, maka kepada pihak lain tak boleh diberikan suatu jumlah yang lebih maupun yang kurang dari pada jumlah itu.",
+      "ayat": []
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.env
+*.log
+
+# Node / Next
+node_modules/
+.next/
+out/
+dist/
+build/
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+
+# Local data
+data/
+*.sqlite
+*.duckdb
+
+# Models / caches
+.cache/
+.hf_cache/
+.embeddings_cache/

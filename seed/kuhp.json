@@ -1,0 +1,30 @@
+{
+  "jenis": "KUHP",
+  "nomor": null,
+  "tahun": 1946,
+  "judul": "Kitab Undang-Undang Hukum Pidana (Wetboek van Strafrecht)",
+  "tentang": "Hukum pidana Indonesia (KUHP lama; UU 1/2023 berlaku efektif 2 Januari 2026).",
+  "status": "berlaku",
+  "penerbit": "UU No. 1 Tahun 1946",
+  "source_url": "https://peraturan.bpk.go.id/Details/47406/uu-no-1-tahun-1946",
+  "pasal": [
+    {
+      "nomor": "1",
+      "teks": "",
+      "ayat": [
+        {"nomor": "1", "teks": "Tiada suatu perbuatan dapat dipidana kecuali atas kekuatan aturan pidana dalam perundang-undangan yang telah ada sebelum perbuatan itu dilakukan."},
+        {"nomor": "2", "teks": "Bilamana ada perubahan dalam perundang-undangan sesudah perbuatan dilakukan, maka terhadap terdakwa diterapkan ketentuan yang paling menguntungkannya."}
+      ]
+    },
+    {
+      "nomor": "362",
+      "teks": "Barang siapa mengambil barang sesuatu, yang seluruhnya atau sebagian kepunyaan orang lain, dengan maksud untuk dimiliki secara melawan hukum, diancam karena pencurian, dengan pidana penjara paling lama lima tahun atau pidana denda paling banyak sembilan ratus rupiah.",
+      "ayat": []
+    },
+    {
+      "nomor": "378",
+      "teks": "Barang siapa dengan maksud untuk menguntungkan diri sendiri atau orang lain secara melawan hukum, dengan memakai nama palsu atau martabat palsu, dengan tipu muslihat, ataupun rangkaian kebohongan, menggerakkan orang lain untuk menyerahkan barang sesuatu kepadanya, atau supaya memberi hutang maupun menghapuskan piutang, diancam karena penipuan dengan pidana penjara paling lama empat tahun.",
+      "ayat": []
+    }
+  ]
+}

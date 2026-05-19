@@ -1,0 +1,10 @@
+{
+  "id": "get_current_date",
+  "name": "Get Current Date",
+  "description": "Return today's date in ISO format (Asia/Jakarta).",
+  "function": {
+    "name": "get_current_date",
+    "description": "Returns today's date.",
+    "parameters": {"type": "object", "properties": {}}
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "id": "citation_trace",
+  "name": "Citation Trace",
+  "version": "0.0.1",
+  "description": "Telusuri citation graph: apa yang dirujuk, apa yang merujuk, rantai amandemen.",
+  "tools_file": "tools.json",
+  "enabled": true
+}

@@ -1,0 +1,28 @@
+{
+  "slug": "riset_hukum",
+  "name": "Riset Hukum",
+  "description": "Isu hukum → cari peraturan → telusuri citation graph → susun memo.",
+  "inputs": {
+    "type": "object",
+    "properties": {
+      "issue": {"type": "string"},
+      "as_of": {"type": "string"}
+    },
+    "required": ["issue"]
+  },
+  "nodes": [
+    {"id": "n1", "type": "skill", "skill": "peraturan_search", "tool": "peraturan_search",
+     "args": {"q": "$inputs.issue", "k": 15, "as_of": "$inputs.as_of"}},
+    {"id": "n2", "type": "loop", "over": "$n1.hits", "as": "hit", "max": 5,
+     "body": [
+       {"id": "n2a", "type": "skill", "skill": "citation_trace", "tool": "citation_trace",
+        "args": {"pasal_id": "$hit.pasal_id", "hops": 2}}
+     ]},
+    {"id": "n3", "type": "skill", "skill": "legal_memo", "tool": "legal_memo_compose",
+     "args": {"issue": "$inputs.issue", "facts": "Hasil riset awal.", "evidence": "$n1.hits"}}
+  ],
+  "edges": [
+    {"from": "n1", "to": "n2"},
+    {"from": "n2", "to": "n3"}
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "id": "document_export",
+  "name": "Document Export",
+  "description": "Render a Document to .docx or .pdf with Indonesian legal formatting.",
+  "function": {
+    "name": "document_export",
+    "description": "Export a Document.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "document_id": {"type": "integer"},
+        "format": {"type": "string", "enum": ["docx", "pdf", "md"], "default": "docx"}
+      },
+      "required": ["document_id"]
+    }
+  }
+}

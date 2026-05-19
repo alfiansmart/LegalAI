@@ -1,0 +1,24 @@
+[
+  {
+    "id": "pasal_lookup",
+    "name": "pasal_lookup",
+    "description": "Ambil teks eksak pasal/ayat/huruf dari korpus peraturan.",
+    "function": {
+      "name": "pasal_lookup",
+      "description": "Exact lookup of a Pasal by structured reference.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "jenis": {"type": "string", "enum": ["UU", "Perppu", "PP", "Perpres", "Permen", "Perda", "KUHP", "KUHPerdata", "KUHAP", "UUD"]},
+          "nomor": {"type": "string"},
+          "tahun": {"type": "integer"},
+          "pasal": {"type": "string"},
+          "ayat": {"type": "string"},
+          "huruf": {"type": "string"},
+          "as_of": {"type": "string"}
+        },
+        "required": ["jenis", "pasal"]
+      }
+    }
+  }
+]

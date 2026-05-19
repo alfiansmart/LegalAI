@@ -1,0 +1,21 @@
+[
+  {
+    "id": "contract_draft",
+    "name": "contract_draft",
+    "description": "Generate a draft perjanjian from a template + parameters.",
+    "function": {
+      "name": "contract_draft",
+      "description": "Render an Indonesian contract template with parameters.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "template_id": {"type": "string"},
+          "parties": {"type": "array", "items": {"type": "object"}},
+          "params": {"type": "object", "description": "Template-specific fields."},
+          "include_clauses": {"type": "array", "items": {"type": "string"}, "description": "Optional standard clauses to inject (e.g. force_majeure, arbitrase_bani)."}
+        },
+        "required": ["template_id", "parties"]
+      }
+    }
+  }
+]

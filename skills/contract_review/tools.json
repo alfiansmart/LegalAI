@@ -1,0 +1,40 @@
+[
+  {
+    "id": "contract_review",
+    "name": "contract_review",
+    "description": "Review klausa kontrak: flag risiko, klausa hilang, compliance.",
+    "function": {
+      "name": "contract_review",
+      "description": "Analyze an uploaded contract; return findings with severity.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "document_id": {"type": "integer"},
+          "raw_text": {"type": "string"},
+          "compliance_against": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": "Daftar peraturan untuk compliance check, mis. ['UU 27/2022', 'UU 13/2003']"
+          }
+        }
+      }
+    }
+  },
+  {
+    "id": "contract_redline",
+    "name": "contract_redline",
+    "description": "Hasilkan track-changes diff vs baseline template.",
+    "function": {
+      "name": "contract_redline",
+      "description": "Diff a draft against a baseline template for redline display.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "document_id": {"type": "integer"},
+          "baseline_template_id": {"type": "string"}
+        },
+        "required": ["document_id", "baseline_template_id"]
+      }
+    }
+  }
+]

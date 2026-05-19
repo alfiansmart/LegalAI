@@ -1,0 +1,17 @@
+{
+  "id": "memory_recall",
+  "name": "Memory Recall",
+  "description": "Recall semantic memories relevant to the query.",
+  "function": {
+    "name": "memory_recall",
+    "description": "Semantic search over per-user long-term memory.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "q": {"type": "string"},
+        "k": {"type": "integer", "default": 5}
+      },
+      "required": ["q"]
+    }
+  }
+}

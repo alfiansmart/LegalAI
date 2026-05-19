@@ -1,0 +1,17 @@
+{
+  "id": "human_approval",
+  "name": "Human Approval",
+  "description": "Pause flow / chat and wait for user decision.",
+  "function": {
+    "name": "human_approval",
+    "description": "Prompt the user for an approve/reject decision.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "question": {"type": "string"},
+        "options": {"type": "array", "items": {"type": "string"}, "default": ["approve", "reject"]}
+      },
+      "required": ["question"]
+    }
+  }
+}

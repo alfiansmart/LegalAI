@@ -1,0 +1,17 @@
+{
+  "id": "memory_add",
+  "name": "Memory Add",
+  "description": "Store a fact / preference / persona note for the current user.",
+  "function": {
+    "name": "memory_add",
+    "description": "Add an entry to per-user long-term memory.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "content": {"type": "string"},
+        "kind": {"type": "string", "enum": ["fact", "preference", "persona"], "default": "fact"}
+      },
+      "required": ["content"]
+    }
+  }
+}

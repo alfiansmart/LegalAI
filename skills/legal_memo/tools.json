@@ -1,0 +1,20 @@
+[
+  {
+    "id": "legal_memo_compose",
+    "name": "legal_memo_compose",
+    "description": "Susun memo hukum dari isu + fakta + bukti yang sudah dikumpulkan.",
+    "function": {
+      "name": "legal_memo_compose",
+      "description": "Compose a structured legal memo.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "issue": {"type": "string"},
+          "facts": {"type": "string"},
+          "evidence": {"type": "array", "items": {"type": "object"}, "description": "Pasal/ayat results from peraturan_search/pasal_lookup."}
+        },
+        "required": ["issue", "facts"]
+      }
+    }
+  }
+]

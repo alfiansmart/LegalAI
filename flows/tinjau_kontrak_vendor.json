@@ -1,0 +1,27 @@
+{
+  "slug": "tinjau_kontrak_vendor",
+  "name": "Tinjau Kontrak Vendor",
+  "description": "Upload kontrak vendor → ekstrak klausa → review risiko → compliance check (UU PDP, UU Ketenagakerjaan) → memo.",
+  "inputs": {
+    "type": "object",
+    "properties": {
+      "document_id": {"type": "integer", "description": "ID dokumen yang sudah diunggah."}
+    },
+    "required": ["document_id"]
+  },
+  "nodes": [
+    {"id": "n1", "type": "skill", "skill": "contract_review", "tool": "contract_review",
+     "args": {"document_id": "$inputs.document_id",
+              "compliance_against": ["UU 27/2022", "UU 13/2003", "UU 11/2020"]}},
+    {"id": "n2", "type": "skill", "skill": "legal_memo", "tool": "legal_memo_compose",
+     "args": {"issue": "Risiko hukum kontrak vendor",
+              "facts": "$n1.summary",
+              "evidence": "$n1.findings"}},
+    {"id": "n3", "type": "tool", "tool": "document_export",
+     "args": {"document_id": "$n2.document_id", "format": "pdf"}}
+  ],
+  "edges": [
+    {"from": "n1", "to": "n2"},
+    {"from": "n2", "to": "n3"}
+  ]
+}

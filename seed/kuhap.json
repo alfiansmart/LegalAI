@@ -1,0 +1,28 @@
+{
+  "jenis": "KUHAP",
+  "nomor": "8",
+  "tahun": 1981,
+  "judul": "Kitab Undang-Undang Hukum Acara Pidana (UU No. 8 Tahun 1981)",
+  "tentang": "Hukum acara pidana Indonesia",
+  "status": "berlaku",
+  "penerbit": "Pemerintah RI",
+  "source_url": "https://peraturan.bpk.go.id/Details/47166/uu-no-8-tahun-1981",
+  "pasal": [
+    {
+      "nomor": "1",
+      "teks": "Yang dimaksud dalam undang-undang ini dengan:",
+      "ayat": [
+        {"nomor": "1", "teks": "Penyidik adalah pejabat polisi negara Republik Indonesia atau pejabat pegawai negeri sipil tertentu yang diberi wewenang khusus oleh undang-undang untuk melakukan penyidikan."},
+        {"nomor": "2", "teks": "Penyidikan adalah serangkaian tindakan penyidik dalam hal dan menurut cara yang diatur dalam undang-undang ini untuk mencari serta mengumpulkan bukti yang dengan bukti itu membuat terang tentang tindak pidana yang terjadi dan guna menemukan tersangkanya."}
+      ]
+    },
+    {
+      "nomor": "184",
+      "teks": "",
+      "ayat": [
+        {"nomor": "1", "teks": "Alat bukti yang sah ialah: a. keterangan saksi; b. keterangan ahli; c. surat; d. petunjuk; e. keterangan terdakwa."},
+        {"nomor": "2", "teks": "Hal yang secara umum sudah diketahui tidak perlu dibuktikan."}
+      ]
+    }
+  ]
+}

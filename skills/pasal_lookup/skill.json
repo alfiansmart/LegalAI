@@ -1,0 +1,9 @@
+{
+  "id": "pasal_lookup",
+  "name": "Pasal Lookup",
+  "version": "0.0.1",
+  "description": "Ambil teks pasal/ayat/huruf eksak berdasarkan referensi terstruktur.",
+  "author": "LegalAI",
+  "tools_file": "tools.json",
+  "enabled": true
+}

@@ -1,0 +1,37 @@
+{
+  "jenis": "UUD",
+  "nomor": null,
+  "tahun": 1945,
+  "judul": "Undang-Undang Dasar Negara Republik Indonesia Tahun 1945",
+  "tentang": "Konstitusi Republik Indonesia",
+  "status": "berlaku",
+  "penerbit": "PPKI",
+  "source_url": "https://peraturan.bpk.go.id/Details/45146/uud-no--",
+  "pasal": [
+    {
+      "nomor": "1",
+      "teks": "",
+      "ayat": [
+        {"nomor": "1", "teks": "Negara Indonesia ialah Negara Kesatuan, yang berbentuk Republik."},
+        {"nomor": "2", "teks": "Kedaulatan berada di tangan rakyat dan dilaksanakan menurut Undang-Undang Dasar."},
+        {"nomor": "3", "teks": "Negara Indonesia adalah negara hukum."}
+      ]
+    },
+    {
+      "nomor": "27",
+      "teks": "",
+      "ayat": [
+        {"nomor": "1", "teks": "Segala warga negara bersamaan kedudukannya di dalam hukum dan pemerintahan dan wajib menjunjung hukum dan pemerintahan itu dengan tidak ada kecualinya."},
+        {"nomor": "2", "teks": "Tiap-tiap warga negara berhak atas pekerjaan dan penghidupan yang layak bagi kemanusiaan."},
+        {"nomor": "3", "teks": "Setiap warga negara berhak dan wajib ikut serta dalam upaya pembelaan negara."}
+      ]
+    },
+    {
+      "nomor": "28D",
+      "teks": "",
+      "ayat": [
+        {"nomor": "1", "teks": "Setiap orang berhak atas pengakuan, jaminan, perlindungan, dan kepastian hukum yang adil serta perlakuan yang sama di hadapan hukum."}
+      ]
+    }
+  ]
+}

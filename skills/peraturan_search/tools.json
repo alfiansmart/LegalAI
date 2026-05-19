@@ -1,0 +1,26 @@
+[
+  {
+    "id": "peraturan_search",
+    "name": "peraturan_search",
+    "description": "Cari pasal yang relevan dengan kueri pengguna atas korpus peraturan Indonesia (hybrid BM25 + dense vector + graph expansion).",
+    "function": {
+      "name": "peraturan_search",
+      "description": "Hybrid retrieval over the Indonesian legal corpus.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "q": {"type": "string", "description": "Kueri (bisa Bahasa Indonesia)."},
+          "k": {"type": "integer", "default": 10, "description": "Jumlah hasil teratas."},
+          "jenis": {
+            "type": "array",
+            "items": {"type": "string", "enum": ["UU", "Perppu", "PP", "Perpres", "Permen", "Perda", "KUHP", "KUHPerdata", "KUHAP", "UUD"]},
+            "description": "Filter jenis peraturan."
+          },
+          "as_of": {"type": "string", "description": "Tanggal ISO untuk point-in-time retrieval (default: hari ini)."},
+          "expand_graph": {"type": "boolean", "default": true, "description": "Apakah k-hop citation expansion diaktifkan."}
+        },
+        "required": ["q"]
+      }
+    }
+  }
+]

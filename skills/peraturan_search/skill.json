@@ -1,0 +1,9 @@
+{
+  "id": "peraturan_search",
+  "name": "Peraturan Search",
+  "version": "0.0.1",
+  "description": "Pencarian hibrida (BM25 + vector + graph expansion) atas korpus peraturan Indonesia.",
+  "author": "LegalAI",
+  "tools_file": "tools.json",
+  "enabled": true
+}

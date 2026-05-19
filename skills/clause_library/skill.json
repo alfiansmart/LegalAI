@@ -1,0 +1,8 @@
+{
+  "id": "clause_library",
+  "name": "Clause Library",
+  "version": "0.0.1",
+  "description": "Pustaka klausa baku (force majeure, arbitrase BANI, choice of law, dst.).",
+  "tools_file": "tools.json",
+  "enabled": true
+}
