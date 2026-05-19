@@ -1,12 +1,19 @@
-"""Document service — versioned drafts (perjanjian / memo / opini) with redline diff."""
+"""Document service — versioned drafts (perjanjian / memo / opini)."""
 from __future__ import annotations
+
+from sqlalchemy import func, select
 
 from backend.db import models
 from backend.db.session import session_scope
 
 
-async def create_draft(user_id: str | None, title: str, kind: str, content: str,
-                       template_id: str | None = None) -> int:
+async def create_draft(
+    user_id: str | None,
+    title: str,
+    kind: str,
+    content: str,
+    template_id: str | None = None,
+) -> int:
     async with session_scope() as s:
         doc = models.Document(
             user_id=user_id,
@@ -21,8 +28,6 @@ async def create_draft(user_id: str | None, title: str, kind: str, content: str,
 
 
 async def new_version(document_id: int, content: str, note: str | None = None) -> int:
-    from sqlalchemy import func, select
-
     async with session_scope() as s:
         v = await s.scalar(
             select(func.max(models.DocumentVersion.version)).where(
@@ -36,3 +41,62 @@ async def new_version(document_id: int, content: str, note: str | None = None) -
             )
         )
         return next_v
+
+
+async def latest_content(document_id: int) -> str | None:
+    async with session_scope() as s:
+        row = (
+            await s.execute(
+                select(models.DocumentVersion.content)
+                .where(models.DocumentVersion.document_id == document_id)
+                .order_by(models.DocumentVersion.version.desc())
+                .limit(1)
+            )
+        ).first()
+    return row.content if row else None
+
+
+async def get_document(document_id: int) -> dict | None:
+    async with session_scope() as s:
+        doc = await s.get(models.Document, document_id)
+        if not doc:
+            return None
+        versions = (
+            await s.execute(
+                select(models.DocumentVersion)
+                .where(models.DocumentVersion.document_id == document_id)
+                .order_by(models.DocumentVersion.version)
+            )
+        ).scalars().all()
+    return {
+        "id": doc.id,
+        "title": doc.title,
+        "kind": doc.kind.value if hasattr(doc.kind, "value") else doc.kind,
+        "template_id": doc.template_id,
+        "versions": [
+            {
+                "version": v.version,
+                "content": v.content,
+                "note": v.note,
+                "created_at": v.created_at.isoformat() if v.created_at else None,
+            }
+            for v in versions
+        ],
+    }
+
+
+async def list_documents(user_id: str | None = None, limit: int = 50) -> list[dict]:
+    async with session_scope() as s:
+        q = select(models.Document).order_by(models.Document.id.desc()).limit(limit)
+        if user_id:
+            q = q.where(models.Document.user_id == user_id)
+        rows = (await s.execute(q)).scalars().all()
+    return [
+        {
+            "id": d.id,
+            "title": d.title,
+            "kind": d.kind.value if hasattr(d.kind, "value") else d.kind,
+            "template_id": d.template_id,
+        }
+        for d in rows
+    ]

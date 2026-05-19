@@ -76,17 +76,25 @@ curl -X POST http://localhost:8000/chat \
 open http://localhost:3000
 ```
 
-## Verifikasi Phase 1
+## Verifikasi Phase 1 & 2
 
-- `GET /corpus/stats` → `peraturan ≥ 4`, `embedded > 0`.
-- `POST /search {"q":"syarat sah perjanjian"}` → Pasal 1320 KUHPerdata di top-3.
-- Chat UI: tanya *"Apa syarat sah perjanjian?"* → jawaban memuat chip
-  `Pasal 1320 KUHPerdata` yang bisa di-hover untuk preview teks ayat.
-- Citation faithfulness: chip yang gagal ter-resolve ditandai ⚠ (merah).
+- **Phase 1**: `GET /corpus/stats` → `peraturan ≥ 4`, `embedded > 0`.
+  `POST /search {"q":"syarat sah perjanjian"}` → Pasal 1320 KUHPerdata
+  di top-3. Chat: tanya *"Apa syarat sah perjanjian?"* → jawaban
+  memuat chip `Pasal 1320 KUHPerdata` (hover untuk preview).
+- **Phase 2 — drafting**: chat ke persona `drafter`,
+  *"Buat NDA antara PT Alpha dan PT Beta untuk diskusi joint-venture"*
+  → tool `contract_draft` membuat Document → muncul di `/documents`.
+- **Phase 2 — review**: chat ke persona `reviewer`, paste kontrak →
+  `contract_review` mengembalikan findings (severity + pasal anchor).
+- **Phase 2 — memo**: persona `researcher` →  `legal_memo_compose` →
+  memo terstruktur.
+- **Phase 2 — editor & export**: buka `/documents/{id}`, edit di TipTap,
+  klik *Export .docx*.
 
 ## Status
 
-Phase 1 — RAG + first agent. Lihat
+Phase 2 — drafting & review (live). Lihat
 [`/root/.claude/plans/learn-about-https-github-com-anvie-evoni-joyful-dijkstra.md`](.)
 untuk peta jalan lengkap.
 
