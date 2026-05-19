@@ -65,14 +65,24 @@ async def load_one(path: Path) -> None:
         print(f"[seed] loaded: {path.name} ({len(data.get('pasal', []))} pasal)")
 
 
-async def main() -> None:
+async def main(embed: bool = True) -> None:
     files = sorted(SEED_DIR.glob("*.json"))
     if not files:
         print(f"[seed] no JSON files in {SEED_DIR}/")
         return
     for f in files:
         await load_one(f)
+    if embed:
+        from backend.rag.embed_runner import embed_pending
+
+        stats = await embed_pending(limit=100_000)
+        print(
+            f"[seed] embeddings: scanned={stats.scanned} "
+            f"embedded={stats.embedded} skipped={stats.skipped}"
+        )
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    import os
+
+    asyncio.run(main(embed=os.getenv("SEED_EMBED", "1") != "0"))

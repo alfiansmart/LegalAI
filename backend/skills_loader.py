@@ -1,8 +1,8 @@
 """Load skills from /skills/<name>/skill.json (Evonic-style)."""
 from __future__ import annotations
 
-import importlib
 import importlib.util
+import inspect
 import json
 import sys
 from dataclasses import dataclass
@@ -21,15 +21,25 @@ class Skill:
     handlers: dict[str, Callable[..., Any]]
     manifest: dict
 
-    def call(self, tool_name: str, args: dict, agent=None) -> Any:
+    async def call(self, tool_name: str, args: dict, agent: Any = None) -> Any:
         if tool_name not in self.handlers:
             raise KeyError(f"Tool {tool_name!r} not implemented in skill {self.id!r}")
-        return self.handlers[tool_name](agent=agent, args=args)
+        result = self.handlers[tool_name](agent=agent, args=args)
+        if inspect.iscoroutine(result):
+            result = await result
+        return result
 
 
 class SkillRegistry:
     def __init__(self, skills: dict[str, Skill]):
         self._skills = skills
+        # Build a flat (tool_name -> skill_id) index for fast dispatch.
+        self._tool_index: dict[str, str] = {}
+        for sid, skill in skills.items():
+            for tool in skill.tools:
+                tname = tool.get("function", {}).get("name") or tool.get("id")
+                if tname:
+                    self._tool_index[tname] = sid
 
     @classmethod
     def from_dir(cls, dir_path: str | Path) -> "SkillRegistry":
@@ -56,11 +66,42 @@ class SkillRegistry:
     def names(self) -> list[str]:
         return list(self._skills.keys())
 
+    def find_by_tool(self, tool_name: str) -> Skill | None:
+        sid = self._tool_index.get(tool_name)
+        return self._skills.get(sid) if sid else None
+
+    def tools_for(self, skill_ids: list[str]) -> list[dict]:
+        """Anthropic-format tool list collated from the given skills."""
+        out: list[dict] = []
+        seen: set[str] = set()
+        for sid in skill_ids:
+            sk = self._skills.get(sid)
+            if not sk:
+                continue
+            for t in sk.tools:
+                fn = t.get("function", {})
+                name = fn.get("name")
+                if not name or name in seen:
+                    continue
+                seen.add(name)
+                out.append(
+                    {
+                        "name": name,
+                        "description": fn.get("description", t.get("description", "")),
+                        "input_schema": fn.get(
+                            "parameters", {"type": "object", "properties": {}}
+                        ),
+                    }
+                )
+        return out
+
 
 def _load_one(skill_dir: Path) -> Skill:
     manifest = json.loads((skill_dir / "skill.json").read_text())
     tools_file = skill_dir / manifest.get("tools_file", "tools.json")
-    tools = json.loads(tools_file.read_text()) if tools_file.exists() else []
+    tools_raw = json.loads(tools_file.read_text()) if tools_file.exists() else []
+    tools = tools_raw if isinstance(tools_raw, list) else tools_raw.get("tools", [])
+
     system_md = skill_dir / "SYSTEM.md"
     system_prompt = system_md.read_text() if system_md.exists() else ""
 
@@ -86,7 +127,10 @@ def _load_one(skill_dir: Path) -> Skill:
         version=manifest.get("version", "0.0.1"),
         description=manifest.get("description", ""),
         system_prompt=system_prompt,
-        tools=tools if isinstance(tools, list) else tools.get("tools", []),
+        tools=tools,
         handlers=handlers,
         manifest=manifest,
     )
+
+
+__all__ = ["Skill", "SkillRegistry"]

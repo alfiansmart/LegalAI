@@ -61,13 +61,32 @@ cp .env.example .env
 # isi ANTHROPIC_API_KEY
 docker compose up -d
 docker compose exec backend alembic upgrade head
+
+# Seed kitabs (KUHP / KUHPerdata / KUHAP / UUD) + embed otomatis
 docker compose exec backend python -m backend.corpus.seed_loader
+
+# (opsional) embed ulang batch
+curl -X POST http://localhost:8000/corpus/embed
+
+# Chat
+curl -X POST http://localhost:8000/chat \
+     -H 'content-type: application/json' \
+     -d '{"message":"Apa syarat sah perjanjian menurut KUHPerdata?"}'
+
 open http://localhost:3000
 ```
 
+## Verifikasi Phase 1
+
+- `GET /corpus/stats` → `peraturan ≥ 4`, `embedded > 0`.
+- `POST /search {"q":"syarat sah perjanjian"}` → Pasal 1320 KUHPerdata di top-3.
+- Chat UI: tanya *"Apa syarat sah perjanjian?"* → jawaban memuat chip
+  `Pasal 1320 KUHPerdata` yang bisa di-hover untuk preview teks ayat.
+- Citation faithfulness: chip yang gagal ter-resolve ditandai ⚠ (merah).
+
 ## Status
 
-Phase 0 — foundation (scaffolding). Lihat
+Phase 1 — RAG + first agent. Lihat
 [`/root/.claude/plans/learn-about-https-github-com-anvie-evoni-joyful-dijkstra.md`](.)
 untuk peta jalan lengkap.
 

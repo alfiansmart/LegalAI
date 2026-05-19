@@ -13,10 +13,20 @@ class ChatRequest(BaseModel):
     as_of: str | None = None
 
 
+class CitationOut(BaseModel):
+    label: str
+    peraturan: str
+    pasal: str
+    ayat: str | None = None
+    huruf: str | None = None
+    pasal_id: int | None = None
+    verified: bool
+
+
 class ChatResponse(BaseModel):
     session_id: str
     reply: str
-    citations: list[dict] = []
+    citations: list[CitationOut] = []
     trace: list[dict] = []
 
 
@@ -27,6 +37,6 @@ async def chat(req: ChatRequest) -> ChatResponse:
     return ChatResponse(
         session_id=result.session_id,
         reply=result.reply,
-        citations=result.citations,
+        citations=[CitationOut(**c) for c in result.citations],
         trace=result.trace,
     )

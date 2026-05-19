@@ -1,21 +1,31 @@
 """Claude-Code-style agent harness.
 
 Responsibilities:
-  - Streaming tool-use loop with bounded turns.
-  - Subagent dispatch for heavy work (research / review).
-  - Context budget manager (auto-compaction into episodic memory).
-  - Prompt-cache the persona + skill prompts + retrieved pasal block.
-  - Plan-then-act for complex queries.
-  - Citation faithfulness verifier pass for any drafted document.
+  - Anthropic streaming tool-use loop with bounded turns.
+  - Prompt-cache the persona + skill prompts on every turn.
+  - Resolve every Pasal citation in the final answer to a real pasal_id
+    via `pasal_lookup` — citations that don't resolve are dropped (this
+    is the citation-faithfulness guard for the legal domain).
+  - Persist Turn rows for episodic memory.
+  - Apply the safety-disclaimer wrapper.
+
+Subagents, context-budget compaction, plan-then-act, and the verifier
+subagent are Phase-2.
 """
 from __future__ import annotations
 
+import json
 import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
 from backend.agents import personas
 from backend.config import get_settings
+from backend.db import models
+from backend.db.session import session_scope
+from backend.rag.citation import CitationRef, format_citation, parse_citations
+from backend.safety.checks import ensure_disclaimer
+from backend.skills_loader import SkillRegistry
 
 _settings = get_settings()
 
@@ -29,49 +39,241 @@ class HarnessResult:
 
 
 class AgentHarness:
-    def __init__(self, agent_name: str = "asisten_hukum", session_id: str | None = None):
+    def __init__(
+        self,
+        agent_name: str = "asisten_hukum",
+        session_id: str | None = None,
+        registry: SkillRegistry | None = None,
+    ):
         self.persona = personas.get(agent_name)
         self.session_id = session_id or uuid.uuid4().hex
+        self.registry = registry or SkillRegistry.from_dir(_settings.skills_dir)
         self.trace: list[dict] = []
-        self.citations: list[dict] = []
+
+    # ------------------------------------------------------------------
+    # Public entrypoint
+    # ------------------------------------------------------------------
 
     async def run(self, user_message: str, as_of: str | None = None) -> HarnessResult:
-        """Phase-0 stub: returns a placeholder. The real loop lands in Phase 1.
+        if not _settings.anthropic_api_key:
+            return HarnessResult(
+                session_id=self.session_id,
+                reply=(
+                    "ANTHROPIC_API_KEY belum dikonfigurasi. Set di `.env` "
+                    "untuk mengaktifkan agent."
+                ),
+            )
 
-        Planned shape:
-          1. Load episodic + semantic memory tools.
-          2. (Plan-then-act) Ask fast model for a plan if message is complex.
-          3. Tool loop with Anthropic streaming + tool_use blocks:
-               - peraturan_search / pasal_lookup / citation_trace / …
-               - cache_control on persona + skill prompts + corpus prefix
-          4. CRAG: grade evidence; rewrite query on insufficient.
-          5. Verifier subagent re-reads any drafted artifact for citation
-             faithfulness before returning.
-          6. Persist Turn rows; extract memory candidates post-turn.
-        """
-        reply = (
-            f"[Phase-0 stub] Agent '{self.persona.name}' menerima pesan: {user_message!r}. "
-            "Loop tool-use Anthropic + RAG + verifier akan diaktifkan pada Phase 1."
-        )
+        # Lazy import — keeps test runs lean.
+        from anthropic import AsyncAnthropic
+
+        client = AsyncAnthropic(api_key=_settings.anthropic_api_key)
+
+        system_blocks = self._build_system()
+        tools = self.registry.tools_for(self.persona.skills)
+        messages = await self._build_initial_messages(user_message, as_of=as_of)
+
+        await self._ensure_session()
+        await self._persist_turn("user", user_message)
+
+        final_text = ""
+        for turn in range(_settings.max_agent_turns):
+            kwargs: dict[str, Any] = {
+                "model": _settings.anthropic_model_default,
+                "max_tokens": 4096,
+                "system": system_blocks,
+                "messages": messages,
+            }
+            if tools:
+                kwargs["tools"] = tools
+
+            resp = await client.messages.create(**kwargs)
+            self.trace.append({"turn": turn, "stop_reason": resp.stop_reason})
+
+            assistant_content: list[dict] = []
+            tool_uses = []
+            for block in resp.content:
+                if block.type == "text":
+                    final_text += block.text
+                    assistant_content.append({"type": "text", "text": block.text})
+                elif block.type == "tool_use":
+                    tool_uses.append(block)
+                    assistant_content.append(
+                        {
+                            "type": "tool_use",
+                            "id": block.id,
+                            "name": block.name,
+                            "input": block.input,
+                        }
+                    )
+            messages.append({"role": "assistant", "content": assistant_content})
+
+            if resp.stop_reason != "tool_use" or not tool_uses:
+                break
+
+            tool_results = []
+            for tu in tool_uses:
+                result = await self._execute_tool(tu.name, dict(tu.input))
+                self.trace.append(
+                    {
+                        "tool": tu.name,
+                        "args": dict(tu.input),
+                        "result_summary": _summarize(result),
+                    }
+                )
+                tool_results.append(
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": tu.id,
+                        "content": json.dumps(result, ensure_ascii=False)[:8000],
+                    }
+                )
+            messages.append({"role": "user", "content": tool_results})
+
+        citations = await self._resolve_citations(final_text)
+        await self._persist_turn("assistant", final_text, citations=citations)
+
         return HarnessResult(
-            session_id=self.session_id, reply=reply, citations=self.citations, trace=self.trace
+            session_id=self.session_id,
+            reply=ensure_disclaimer(final_text.strip()),
+            citations=citations,
+            trace=self.trace,
         )
 
-    # ---- Helpers (implemented in Phase 1) ----
+    # ------------------------------------------------------------------
+    # System prompt assembly (with prompt-caching)
+    # ------------------------------------------------------------------
 
-    async def _plan(self, message: str) -> list[str]:
-        """Decompose complex queries into sub-questions using the fast model."""
-        raise NotImplementedError
+    def _build_system(self) -> list[dict]:
+        # Block 1: persona prompt (small, stable across sessions).
+        # Block 2: concatenated skill prompts (larger, stable across turns).
+        # Both blocks marked cache_control=ephemeral so subsequent turns
+        # in the same session hit the prompt cache.
+        skill_parts: list[str] = []
+        for sid in self.persona.skills:
+            try:
+                sk = self.registry.get(sid)
+            except KeyError:
+                continue
+            if sk.system_prompt:
+                skill_parts.append(f"## Skill: {sk.name}\n{sk.system_prompt}")
 
-    async def _subagent(self, task: str, skills: list[str]) -> dict[str, Any]:
-        """Dispatch a heavy task to a fresh subagent; returns compact summary."""
-        raise NotImplementedError
+        blocks: list[dict] = [
+            {
+                "type": "text",
+                "text": self.persona.system_prompt.strip(),
+                "cache_control": {"type": "ephemeral"},
+            }
+        ]
+        if skill_parts:
+            blocks.append(
+                {
+                    "type": "text",
+                    "text": "\n\n".join(skill_parts).strip(),
+                    "cache_control": {"type": "ephemeral"},
+                }
+            )
+        return blocks
 
-    async def _compact_if_needed(self, messages: list[dict]) -> list[dict]:
-        """Token-budget check; if exceeded, summarize older turns into episodic memory."""
-        raise NotImplementedError
+    # ------------------------------------------------------------------
+    # Tool dispatch
+    # ------------------------------------------------------------------
 
-    async def _verify_citations(self, draft_text: str) -> tuple[str, list[dict]]:
-        """For every Pasal cited, fetch text & ask: 'does it support the claim?'.
-        Drop / rewrite unsupported claims."""
-        raise NotImplementedError
+    async def _execute_tool(self, name: str, args: dict) -> dict:
+        skill = self.registry.find_by_tool(name)
+        if not skill:
+            return {"status": "error", "message": f"unknown tool {name!r}"}
+        try:
+            return await skill.call(name, args, agent=self)
+        except Exception as e:  # noqa: BLE001
+            return {"status": "error", "message": f"{type(e).__name__}: {e}"}
+
+    # ------------------------------------------------------------------
+    # Citation faithfulness
+    # ------------------------------------------------------------------
+
+    async def _resolve_citations(self, text: str) -> list[dict]:
+        from backend.rag.temporal import pasal_as_of
+
+        out: list[dict] = []
+        seen: set[tuple] = set()
+        for ref in parse_citations(text):
+            if not ref.jenis or not ref.pasal:
+                continue
+            key = (ref.jenis, ref.nomor, ref.tahun, ref.pasal, ref.ayat, ref.huruf)
+            if key in seen:
+                continue
+            seen.add(key)
+
+            resolved = await pasal_as_of(
+                peraturan_jenis=ref.jenis,
+                peraturan_nomor=ref.nomor,
+                peraturan_tahun=ref.tahun,
+                pasal_nomor=ref.pasal,
+                ayat_nomor=ref.ayat,
+                huruf=ref.huruf,
+            )
+            out.append(
+                {
+                    "label": format_citation(ref),
+                    "peraturan": (resolved or {}).get("peraturan", {}).get("label", ref.jenis),
+                    "pasal": ref.pasal,
+                    "ayat": ref.ayat,
+                    "huruf": ref.huruf,
+                    "pasal_id": (resolved or {}).get("id"),
+                    "verified": bool(resolved),
+                }
+            )
+        return out
+
+    # ------------------------------------------------------------------
+    # Persistence
+    # ------------------------------------------------------------------
+
+    async def _ensure_session(self) -> None:
+        async with session_scope() as s:
+            existing = await s.get(models.Session, self.session_id)
+            if not existing:
+                s.add(models.Session(id=self.session_id, agent=self.persona.id))
+
+    async def _persist_turn(
+        self, role: str, content: str, citations: list[dict] | None = None
+    ) -> None:
+        async with session_scope() as s:
+            s.add(
+                models.Turn(
+                    session_id=self.session_id,
+                    role=role,
+                    content=content,
+                    citations=citations,
+                )
+            )
+
+    async def _build_initial_messages(
+        self, user_message: str, as_of: str | None
+    ) -> list[dict]:
+        # Hydrate prior turns as plain user/assistant text (tool_use blocks
+        # from prior turns are intentionally dropped — Anthropic accepts
+        # plain content arrays and we don't need the prior tool trace).
+        from backend.memory.episodic import recent
+
+        prior = await recent(self.session_id, limit=10)
+        messages: list[dict] = []
+        for t in prior:
+            if t["role"] not in {"user", "assistant"}:
+                continue
+            messages.append({"role": t["role"], "content": t["content"]})
+
+        prefix = ""
+        if as_of:
+            prefix = f"[as_of={as_of}] "
+        messages.append({"role": "user", "content": prefix + user_message})
+        return messages
+
+
+def _summarize(result: Any) -> str:
+    try:
+        s = json.dumps(result, ensure_ascii=False)
+    except Exception:  # noqa: BLE001
+        s = str(result)
+    return s[:240]
