@@ -89,8 +89,26 @@ async def execute(agent=None, args: dict | None = None) -> dict:
         "document_id": doc_id,
         "analysis": analysis,
         "conclusion": conclusion,
+        "memo": content,
         "content_preview": content[:600],
+        "artifacts": _memo_artifacts(issue, evidence),
     }
+
+
+def _memo_artifacts(issue: str, evidence: list) -> list[dict]:
+    from backend.agents import artifacts as A
+
+    out: list[dict] = []
+    # Evidence table — what pasal grounds the memo.
+    if evidence:
+        rows = []
+        for e in evidence:
+            label = f"{e.get('peraturan', '?')} Pasal {e.get('pasal', '?')}"
+            if e.get("ayat"):
+                label += f" ayat ({e['ayat']})"
+            rows.append([label, (e.get("snippet") or e.get("teks") or "")[:300]])
+        out.append(A.table("Bukti Pasal", ["Rujukan", "Kutipan"], rows))
+    return out
 
 
 _JSON_BLOCK_RE = re.compile(r"\{.*\}", re.DOTALL)
