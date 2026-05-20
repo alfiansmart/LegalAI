@@ -43,10 +43,14 @@ class AgentHarness:
         self,
         agent_name: str = "asisten_hukum",
         session_id: str | None = None,
+        matter_id: int | None = None,
         registry: SkillRegistry | None = None,
     ):
         self.persona = personas.get(agent_name)
         self.session_id = session_id or uuid.uuid4().hex
+        self.matter_id = matter_id
+        self.matter_notes: str | None = None
+        self.matter_name: str | None = None
         self.registry = registry or SkillRegistry.from_dir(_settings.skills_dir)
         self.trace: list[dict] = []
 
@@ -74,6 +78,7 @@ class AgentHarness:
 
         client = AsyncAnthropic(api_key=_settings.anthropic_api_key)
 
+        await self._load_matter()
         system_blocks = self._build_system()
         tools = self.registry.tools_for(self.persona.skills)
         messages = await self._build_initial_messages(user_message, as_of=as_of)
@@ -222,7 +227,29 @@ class AgentHarness:
                     "cache_control": {"type": "ephemeral"},
                 }
             )
+        # Matter context — *not* cached, since it changes between matters
+        # and is updated by the user during a case.
+        if self.matter_notes:
+            blocks.append(
+                {
+                    "type": "text",
+                    "text": (
+                        f"# Matter aktif: {self.matter_name or '(tanpa nama)'}\n\n"
+                        f"Catatan matter (MATTER.md) — gunakan sebagai konteks "
+                        f"dan ingat fakta-fakta klien:\n\n{self.matter_notes}"
+                    ),
+                }
+            )
         return blocks
+
+    async def _load_matter(self) -> None:
+        if self.matter_id is None:
+            return
+        async with session_scope() as s:
+            m = await s.get(models.Matter, self.matter_id)
+            if m:
+                self.matter_notes = m.notes_md
+                self.matter_name = m.name
 
     # ------------------------------------------------------------------
     # Tool dispatch
@@ -283,7 +310,15 @@ class AgentHarness:
         async with session_scope() as s:
             existing = await s.get(models.Session, self.session_id)
             if not existing:
-                s.add(models.Session(id=self.session_id, agent=self.persona.id))
+                s.add(
+                    models.Session(
+                        id=self.session_id,
+                        agent=self.persona.id,
+                        matter_id=self.matter_id,
+                    )
+                )
+            elif self.matter_id and existing.matter_id != self.matter_id:
+                existing.matter_id = self.matter_id
 
     async def _persist_turn(
         self, role: str, content: str, citations: list[dict] | None = None

@@ -1,14 +1,14 @@
-from fastapi import APIRouter, HTTPException, Response
+from fastapi import APIRouter, File, Form, HTTPException, Response, UploadFile
 from pydantic import BaseModel
 
-from backend.documents import export, redline, service, templates
+from backend.documents import export, extract, redline, service, templates
 
 router = APIRouter()
 
 
 @router.get("")
-async def list_documents(user_id: str | None = None) -> list[dict]:
-    return await service.list_documents(user_id=user_id)
+async def list_documents(user_id: str | None = None, matter_id: int | None = None) -> list[dict]:
+    return await service.list_documents(user_id=user_id, matter_id=matter_id)
 
 
 @router.get("/templates")
@@ -17,6 +17,31 @@ def list_templates() -> list[dict]:
         {"id": t.id, "title": t.title, "description": t.description}
         for t in templates.list_templates()
     ]
+
+
+@router.post("/upload")
+async def upload_document(
+    file: UploadFile = File(...),
+    matter_id: int | None = Form(default=None),
+    title: str | None = Form(default=None),
+) -> dict:
+    data = await file.read()
+    text = extract.extract(file.filename or "", data)
+    doc_id = await service.create_draft(
+        user_id=None,
+        title=title or file.filename or "Untitled",
+        kind="kontrak_upload",
+        content=text or "(tidak ada teks yang dapat diekstrak)",
+        template_id=None,
+        matter_id=matter_id,
+        source_filename=file.filename,
+    )
+    return {
+        "document_id": doc_id,
+        "filename": file.filename,
+        "bytes": len(data),
+        "text_length": len(text),
+    }
 
 
 @router.get("/{doc_id}")
@@ -52,7 +77,6 @@ async def export_document(doc_id: int, format: str = "docx") -> Response:
             headers={"Content-Disposition": f'attachment; filename="doc-{doc_id}.md"'},
         )
     if fmt in {"docx", "pdf"}:
-        # Phase 2: pdf is approximated by docx; real PDF export comes later.
         data = export.to_docx_bytes(content, title=doc["title"])
         return Response(
             content=data,
@@ -74,5 +98,25 @@ def redline_diff(req: RedlineReq) -> dict:
         "hunks": [
             {"kind": h.kind, "base": h.base, "head": h.head}
             for h in redline.diff(req.base, req.head)
+        ],
+    }
+
+
+class CompareReq(BaseModel):
+    base_document_id: int
+    head_document_id: int
+
+
+@router.post("/compare")
+async def compare_documents(req: CompareReq) -> dict:
+    base = await service.latest_content(req.base_document_id)
+    head = await service.latest_content(req.head_document_id)
+    if base is None or head is None:
+        raise HTTPException(404, "document not found")
+    return {
+        "unified": redline.unified(base, head),
+        "hunks": [
+            {"kind": h.kind, "base": h.base, "head": h.head}
+            for h in redline.diff(base, head)
         ],
     }

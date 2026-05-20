@@ -15,6 +15,7 @@ class ChatRequest(BaseModel):
     message: str
     as_of: str | None = None
     plan_mode: bool = False
+    matter_id: int | None = None
 
 
 class CitationOut(BaseModel):
@@ -64,7 +65,11 @@ async def chat(req: ChatRequest) -> ChatResponse:
                 plan_mode = True
             user_message = slash.to_user_message(intent)
 
-    harness = AgentHarness(agent_name=agent_name, session_id=session_id)
+    harness = AgentHarness(
+        agent_name=agent_name,
+        session_id=session_id,
+        matter_id=req.matter_id,
+    )
     result = await harness.run(user_message, as_of=req.as_of, plan_mode=plan_mode)
     return ChatResponse(
         session_id=result.session_id,

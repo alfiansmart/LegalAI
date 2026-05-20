@@ -1,25 +1,19 @@
 import "./globals.css";
-import Link from "next/link";
+import { Sidebar } from "@/components/workspace/Sidebar";
 
 export const metadata = {
   title: "LegalAI",
-  description: "Indonesian Legal Agent Platform",
+  description: "Indonesian Legal Workspace",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="id">
-      <body className="bg-background text-foreground min-h-screen">
-        <header className="border-b border-white/10 p-4 flex gap-6">
-          <Link href="/" className="font-semibold">LegalAI</Link>
-          <nav className="flex gap-4 text-sm opacity-80">
-            <Link href="/chat">Chat</Link>
-            <Link href="/documents">Dokumen</Link>
-            <Link href="/flows">Playbooks</Link>
-            <Link href="/admin">Admin</Link>
-          </nav>
-        </header>
-        <main className="p-6">{children}</main>
+      <body className="bg-background text-foreground min-h-screen flex">
+        <Sidebar />
+        <main className="flex-1 min-w-0 overflow-y-auto">
+          <div className="px-8 py-6 max-w-6xl mx-auto">{children}</div>
+        </main>
       </body>
     </html>
   );

@@ -240,6 +240,7 @@ class DocumentKind(StrEnum):
     SOMASI = "somasi"
     GUGATAN = "gugatan"
     SURAT_KUASA = "surat_kuasa"
+    KONTRAK_UPLOAD = "kontrak_upload"
     LAINNYA = "lainnya"
 
 
@@ -247,9 +248,11 @@ class Document(Base):
     __tablename__ = "document"
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[str | None] = mapped_column(String(64))
+    matter_id: Mapped[int | None] = mapped_column(ForeignKey("matter.id", ondelete="SET NULL"), index=True)
     title: Mapped[str] = mapped_column(Text)
     kind: Mapped[DocumentKind] = mapped_column(Enum(DocumentKind, name="document_kind"))
     template_id: Mapped[str | None] = mapped_column(String(128))
+    source_filename: Mapped[str | None] = mapped_column(String(255))
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     versions: Mapped[list[DocumentVersion]] = relationship(
         back_populates="document", cascade="all, delete-orphan", order_by="DocumentVersion.version"
@@ -294,6 +297,31 @@ class FlowRun(Base):
     finished_at: Mapped[datetime | None] = mapped_column(DateTime)
 
 
+# ---------- Matter (the workspace organizing unit) ----------
+
+
+class MatterStatus(StrEnum):
+    ACTIVE = "active"
+    ARCHIVED = "archived"
+    CLOSED = "closed"
+
+
+class Matter(Base):
+    __tablename__ = "matter"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    slug: Mapped[str] = mapped_column(String(128), unique=True)
+    name: Mapped[str] = mapped_column(String(255))
+    client: Mapped[str | None] = mapped_column(String(255))
+    description: Mapped[str | None] = mapped_column(Text)
+    notes_md: Mapped[str | None] = mapped_column(Text)  # MATTER.md content
+    status: Mapped[MatterStatus] = mapped_column(
+        Enum(MatterStatus, name="matter_status"), default=MatterStatus.ACTIVE
+    )
+    user_id: Mapped[str | None] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+
+
 # ---------- Chat sessions ----------
 
 
@@ -302,6 +330,7 @@ class Session(Base):
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
     user_id: Mapped[str | None] = mapped_column(String(64))
     agent: Mapped[str] = mapped_column(String(64))
+    matter_id: Mapped[int | None] = mapped_column(ForeignKey("matter.id", ondelete="SET NULL"), index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
 

@@ -13,6 +13,8 @@ async def create_draft(
     kind: str,
     content: str,
     template_id: str | None = None,
+    matter_id: int | None = None,
+    source_filename: str | None = None,
 ) -> int:
     async with session_scope() as s:
         doc = models.Document(
@@ -20,6 +22,8 @@ async def create_draft(
             title=title,
             kind=models.DocumentKind(kind),
             template_id=template_id,
+            matter_id=matter_id,
+            source_filename=source_filename,
         )
         s.add(doc)
         await s.flush()
@@ -85,11 +89,17 @@ async def get_document(document_id: int) -> dict | None:
     }
 
 
-async def list_documents(user_id: str | None = None, limit: int = 50) -> list[dict]:
+async def list_documents(
+    user_id: str | None = None,
+    matter_id: int | None = None,
+    limit: int = 50,
+) -> list[dict]:
     async with session_scope() as s:
         q = select(models.Document).order_by(models.Document.id.desc()).limit(limit)
         if user_id:
             q = q.where(models.Document.user_id == user_id)
+        if matter_id is not None:
+            q = q.where(models.Document.matter_id == matter_id)
         rows = (await s.execute(q)).scalars().all()
     return [
         {
@@ -97,6 +107,8 @@ async def list_documents(user_id: str | None = None, limit: int = 50) -> list[di
             "title": d.title,
             "kind": d.kind.value if hasattr(d.kind, "value") else d.kind,
             "template_id": d.template_id,
+            "matter_id": d.matter_id,
+            "source_filename": d.source_filename,
         }
         for d in rows
     ]
