@@ -77,6 +77,8 @@ async def get_document(document_id: int) -> dict | None:
         "title": doc.title,
         "kind": doc.kind.value if hasattr(doc.kind, "value") else doc.kind,
         "template_id": doc.template_id,
+        "matter_id": doc.matter_id,
+        "source_filename": doc.source_filename,
         "versions": [
             {
                 "version": v.version,

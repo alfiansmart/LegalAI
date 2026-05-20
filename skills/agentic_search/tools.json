@@ -1,0 +1,21 @@
+[
+  {
+    "id": "agentic_search",
+    "name": "agentic_search",
+    "description": "Pencarian agentic dengan dekomposisi kueri + HyDE + CRAG self-grading. Gunakan untuk pertanyaan hukum yang kompleks atau multi-bagian.",
+    "function": {
+      "name": "agentic_search",
+      "description": "Decompose → HyDE → retrieve → rerank → CRAG-grade → maybe retry.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "question": {"type": "string", "description": "Pertanyaan hukum lengkap."},
+          "matter_id": {"type": "integer", "description": "Opsional, scope ke dokumen matter."},
+          "as_of": {"type": "string", "description": "Tanggal ISO untuk point-in-time."},
+          "k": {"type": "integer", "default": 10}
+        },
+        "required": ["question"]
+      }
+    }
+  }
+]

@@ -3,9 +3,17 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { DocumentEditor } from "@/components/document-editor/Editor";
+import { DocumentAIPanel } from "@/components/workspace/DocumentAIPanel";
 
 type Version = { version: number; content: string; note: string | null; created_at: string | null };
-type Doc = { id: number; title: string; kind: string; template_id: string | null; versions: Version[] };
+type Doc = {
+  id: number;
+  title: string;
+  kind: string;
+  template_id: string | null;
+  matter_id?: number | null;
+  versions: Version[];
+};
 
 export default function DocumentDetail() {
   const params = useParams<{ id: string }>();
@@ -38,7 +46,6 @@ export default function DocumentDetail() {
         body: JSON.stringify({ content, note: "manual edit" }),
       });
       setDirty(false);
-      // refresh
       const next = await fetch(`/api/documents/${id}`).then((r) => r.json());
       setDoc(next);
     } finally {
@@ -54,7 +61,7 @@ export default function DocumentDetail() {
   if (!doc) return <div className="opacity-60">Memuat…</div>;
 
   return (
-    <div className="max-w-4xl mx-auto space-y-4">
+    <div className="max-w-7xl mx-auto space-y-4">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold">{doc.title}</h1>
@@ -78,13 +85,18 @@ export default function DocumentDetail() {
           </button>
         </div>
       </div>
-      <DocumentEditor
-        value={content}
-        onChange={(next) => {
-          setContent(next);
-          setDirty(true);
-        }}
-      />
+      <div className="flex gap-4 items-start">
+        <div className="flex-1 min-w-0">
+          <DocumentEditor
+            value={content}
+            onChange={(next) => {
+              setContent(next);
+              setDirty(true);
+            }}
+          />
+        </div>
+        <DocumentAIPanel documentId={doc.id} matterId={doc.matter_id ?? null} />
+      </div>
     </div>
   );
 }

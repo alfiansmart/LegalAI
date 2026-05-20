@@ -32,7 +32,7 @@ PERSONAS: dict[str, Persona] = {
         id="asisten_hukum",
         name="Asisten Hukum",
         system_prompt=_BASE_RULES + "\nFokus: menjawab pertanyaan umum tentang peraturan.",
-        skills=["peraturan_search", "pasal_lookup", "citation_trace"],
+        skills=["peraturan_search", "pasal_lookup", "citation_trace", "agentic_search"],
     ),
     "drafter": Persona(
         id="drafter",
@@ -57,7 +57,7 @@ PERSONAS: dict[str, Persona] = {
         id="researcher",
         name="Legal Researcher",
         system_prompt=_BASE_RULES + "\nFokus: riset hukum mendalam dengan citation trace & memo.",
-        skills=["peraturan_search", "citation_trace", "legal_memo"],
+        skills=["peraturan_search", "citation_trace", "legal_memo", "agentic_search"],
     ),
 }
 
