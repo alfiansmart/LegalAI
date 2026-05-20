@@ -123,6 +123,51 @@ async def raptor_build(peraturan_ids: list[int] | None = None) -> dict:
     }
 
 
+@router.post("/citation/backfill")
+async def citation_backfill(peraturan_id: int | None = None, limit: int | None = None) -> dict:
+    """Walk pasal text, parse Pasal references, insert CitationEdge rows.
+
+    `peraturan_id` scopes to one peraturan; omitting it scans the whole
+    corpus (use `limit` for chunked rebuilds). Idempotent — duplicate
+    edges are silently dropped by the unique constraint.
+    """
+    from backend.ingest.citation_backfill import backfill_all, backfill_for_peraturan
+
+    if peraturan_id is not None:
+        stats = await backfill_for_peraturan(peraturan_id)
+    else:
+        stats = await backfill_all(limit=limit)
+    return {
+        "pasal_scanned": stats.pasal_scanned,
+        "refs_found": stats.refs_found,
+        "edges_inserted": stats.edges_inserted,
+        "edges_already_present": stats.edges_already_present,
+        "refs_unresolved": stats.refs_unresolved,
+    }
+
+
+@router.post("/ingest/url")
+async def ingest_url(url: str, source: str = "bpk") -> dict:
+    """Scrape a peraturan URL end-to-end: parse → persist → embed →
+    citation backfill → RAPTOR build.
+
+    `source` ∈ {bpk, jdihn}. Returns per-step counts plus the
+    `peraturan_id` of the inserted row, or `skipped_reason` if the
+    parser couldn't find a pasal body.
+    """
+    from backend.ingest.orchestrator import ingest_peraturan_url
+
+    result = await ingest_peraturan_url(url, source=source)
+    return {
+        "peraturan_id": result.peraturan_id,
+        "pasal_inserted": result.pasal_inserted,
+        "embedded": result.embedded,
+        "edges_inserted": result.edges_inserted,
+        "raptor_nodes": result.raptor_nodes,
+        "skipped_reason": result.skipped_reason,
+    }
+
+
 def _peraturan_label(p) -> str:
     jenis = p.jenis.value if hasattr(p.jenis, "value") else p.jenis
     if jenis in {"KUHP", "KUHPerdata", "KUHAP", "UUD"}:
