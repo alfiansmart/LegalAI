@@ -1,0 +1,19 @@
+[
+  {
+    "id": "compare_with_commentary",
+    "name": "compare_with_commentary",
+    "description": "Bandingkan dua dokumen / template, hasilkan diff + komentar AI per hunk.",
+    "function": {
+      "name": "compare_with_commentary",
+      "description": "Diff two documents and annotate each hunk with AI commentary in Bahasa.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "base_document_id": {"type": "integer"},
+          "head_document_id": {"type": "integer"},
+          "base_template_id": {"type": "string"}
+        }
+      }
+    }
+  }
+]

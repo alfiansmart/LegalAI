@@ -44,7 +44,14 @@ PERSONAS: dict[str, Persona] = {
         id="reviewer",
         name="Reviewer Kontrak",
         system_prompt=_BASE_RULES + "\nFokus: meninjau kontrak, menandai klausa berisiko.",
-        skills=["contract_review", "clause_library", "peraturan_search"],
+        skills=[
+            "contract_review",
+            "clause_library",
+            "peraturan_search",
+            "document_summarize",
+            "document_extract",
+            "compare_with_commentary",
+        ],
     ),
     "researcher": Persona(
         id="researcher",

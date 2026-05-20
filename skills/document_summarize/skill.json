@@ -1,0 +1,8 @@
+{
+  "id": "document_summarize",
+  "name": "Document Summarize",
+  "version": "0.0.1",
+  "description": "Ringkas dokumen panjang (kontrak/peraturan/memo): exec summary + klausa kunci + tabel kewajiban. Long-doc-aware (Pasal/Section-level coverage).",
+  "tools_file": "tools.json",
+  "enabled": true
+}

@@ -1,0 +1,8 @@
+{
+  "id": "document_extract",
+  "name": "Document Extract",
+  "version": "0.0.1",
+  "description": "Ekstrak fakta terstruktur dari dokumen: para pihak, tanggal, jumlah uang, kewajiban, jurisdiksi, hukum yang berlaku.",
+  "tools_file": "tools.json",
+  "enabled": true
+}

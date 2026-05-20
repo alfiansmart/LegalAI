@@ -78,12 +78,67 @@ async def execute(agent=None, args: dict | None = None) -> dict:
     if not parsed:
         return {"status": "error", "message": "failed to parse model output", "raw": payload_text[:500]}
 
+    findings = parsed.get("findings", [])
+    missing = parsed.get("missing_standard_clauses", [])
     return {
         "status": "ok",
         "summary": parsed.get("summary", ""),
-        "findings": parsed.get("findings", []),
-        "missing_standard_clauses": parsed.get("missing_standard_clauses", []),
+        "findings": findings,
+        "missing_standard_clauses": missing,
+        "artifacts": _build_artifacts(parsed.get("summary", ""), findings, missing),
     }
+
+
+def _build_artifacts(summary: str, findings: list[dict], missing: list[str]) -> list[dict]:
+    from backend.agents import artifacts as A
+
+    out: list[dict] = []
+
+    # 1) Heatmap: clause excerpt x severity. One row per finding, one
+    # cell shaded by the finding's severity.
+    if findings:
+        severities = ["low", "medium", "high", "critical"]
+        rows = [f.get("id") or f"F{i + 1}" for i, f in enumerate(findings)]
+        cells = []
+        for f in findings:
+            row = []
+            sev = (f.get("severity") or "low").lower()
+            for s in severities:
+                if s == sev:
+                    row.append({"severity": s, "label": s[:1].upper()})
+                else:
+                    row.append(None)
+            cells.append(row)
+        out.append(A.heatmap("Severity per finding", rows, severities, cells))
+
+    # 2) Findings table — sortable, exportable.
+    if findings:
+        cols = ["ID", "Severity", "Kategori", "Klausa", "Rekomendasi", "Pasal"]
+        rows_t = []
+        for i, f in enumerate(findings):
+            rows_t.append(
+                [
+                    f.get("id") or f"F{i + 1}",
+                    f.get("severity", ""),
+                    f.get("category", ""),
+                    (f.get("clause_excerpt") or "")[:120],
+                    (f.get("recommendation") or "")[:160],
+                    ", ".join(f.get("pasal_refs") or []),
+                ]
+            )
+        out.append(A.table("Findings", cols, rows_t, caption=summary[:200] or None))
+
+    # 3) Missing-clauses chart (counts by category).
+    if missing:
+        out.append(
+            A.chart(
+                "Klausa yang hilang",
+                kind="bar",
+                series=[{"name": "missing", "data": [{"x": c, "y": 1} for c in missing]}],
+            )
+        )
+
+    return out
 
 
 _JSON_BLOCK_RE = re.compile(r"\{.*\}", re.DOTALL)

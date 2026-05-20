@@ -1,0 +1,18 @@
+[
+  {
+    "id": "document_summarize",
+    "name": "document_summarize",
+    "description": "Ringkas dokumen panjang (kontrak/peraturan/memo) — exec summary + klausa kunci + tabel kewajiban.",
+    "function": {
+      "name": "document_summarize",
+      "description": "Summarize a long legal document with structural outline coverage.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "document_id": {"type": "integer"}
+        },
+        "required": ["document_id"]
+      }
+    }
+  }
+]

@@ -1,0 +1,8 @@
+{
+  "id": "compare_with_commentary",
+  "name": "Compare with Commentary",
+  "version": "0.0.1",
+  "description": "Bandingkan dua dokumen (atau dokumen vs template baseline). Diff hunks dengan komentar AI per hunk.",
+  "tools_file": "tools.json",
+  "enabled": true
+}

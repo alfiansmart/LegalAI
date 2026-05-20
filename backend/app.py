@@ -14,6 +14,7 @@ from backend.routes import (
     matters,
     search,
     skills,
+    tasks,
 )
 
 
@@ -55,4 +56,5 @@ app.include_router(skills.router, prefix="/skills", tags=["skills"])
 app.include_router(corpus.router, prefix="/corpus", tags=["corpus"])
 app.include_router(matters.router, prefix="/matters", tags=["matters"])
 app.include_router(documents.router, prefix="/documents", tags=["documents"])
+app.include_router(tasks.router, prefix="/tasks", tags=["tasks"])
 app.include_router(flows.router, prefix="/flows", tags=["flows"])
