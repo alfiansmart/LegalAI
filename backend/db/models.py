@@ -271,6 +271,139 @@ class DocumentVersion(Base):
     __table_args__ = (UniqueConstraint("document_id", "version", name="uq_doc_version"),)
 
 
+# ---------- Long-document RAG over uploaded contracts ----------
+#
+# When a user uploads a contract we don't just store the file: we parse
+# its structural tree, extract defined terms, chunk along structural
+# boundaries (never mid-pasal), augment each chunk with a context blurb
+# (Anthropic-style contextual retrieval), and embed the augmented text.
+# This is what makes the workspace useful for 200-page contracts where
+# naive 800-token windows would lose definitions and cross-references.
+
+
+class DocumentOutline(Base):
+    """The structural tree of an uploaded document.
+
+    Levels mirror what the doc actually contains: for peraturan-style
+    text it's Bab > Bagian > Pasal > Ayat > Huruf; for contracts it's
+    Section > Clause > Sub-clause. Used to (a) compute breadcrumbs for
+    chunks, (b) render the 'tree' visual artifact, (c) support
+    recursive retrieval (drill into a section).
+    """
+
+    __tablename__ = "document_outline"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    document_id: Mapped[int] = mapped_column(ForeignKey("document.id", ondelete="CASCADE"), index=True)
+    parent_id: Mapped[int | None] = mapped_column(ForeignKey("document_outline.id", ondelete="CASCADE"))
+    level: Mapped[int]  # 0 = root, 1 = top-level section, etc.
+    ordinal: Mapped[int]  # position among siblings
+    kind: Mapped[str] = mapped_column(String(32))  # bab|bagian|pasal|ayat|huruf|section|clause|schedule|definitions
+    title: Mapped[str | None] = mapped_column(Text)
+    span_start: Mapped[int | None]  # char offset in extracted text
+    span_end: Mapped[int | None]
+
+
+class DocumentChunk(Base):
+    """A retrievable unit of an uploaded document.
+
+    `text` is the raw extracted text of the chunk. `contextual_text` is
+    the Anthropic-style context-augmented version we actually embed
+    (chunk text with a 1-2 sentence context blurb prepended). The
+    embedding lives on `contextual_text`, not `text`.
+
+    `breadcrumb` carries the structural path ("Section 4 / Clause 4.2")
+    so the LLM can cite the chunk precisely. `parent_summary` is a
+    short summary of the enclosing section — gives the model context
+    even when retrieval pulls only this leaf.
+    """
+
+    __tablename__ = "document_chunk"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    document_id: Mapped[int] = mapped_column(ForeignKey("document.id", ondelete="CASCADE"), index=True)
+    matter_id: Mapped[int | None] = mapped_column(ForeignKey("matter.id", ondelete="SET NULL"), index=True)
+    outline_id: Mapped[int | None] = mapped_column(ForeignKey("document_outline.id", ondelete="SET NULL"))
+    ordinal: Mapped[int]  # position in the document
+    text: Mapped[str] = mapped_column(Text)
+    contextual_text: Mapped[str | None] = mapped_column(Text)
+    breadcrumb: Mapped[str | None] = mapped_column(Text)
+    parent_summary: Mapped[str | None] = mapped_column(Text)
+    token_count: Mapped[int | None]
+    embedding: Mapped[list[float] | None] = mapped_column(Vector(EMBED_DIM))
+
+    __table_args__ = (
+        Index("ix_document_chunk_document", "document_id", "ordinal"),
+        Index(
+            "ix_document_chunk_embedding",
+            "embedding",
+            postgresql_using="ivfflat",
+            postgresql_with={"lists": 100},
+            postgresql_ops={"embedding": "vector_cosine_ops"},
+        ),
+    )
+
+
+class DocumentEntity(Base):
+    """Extracted entities: parties, dates, monetary amounts, jurisdictions.
+
+    Populated at upload by `document_extract` skill or rule-based
+    extractors, used to render the Extract task's `table` artifacts
+    and to feed downstream skills (e.g. Review wants the parties).
+    """
+
+    __tablename__ = "document_entity"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    document_id: Mapped[int] = mapped_column(ForeignKey("document.id", ondelete="CASCADE"), index=True)
+    kind: Mapped[str] = mapped_column(String(32))  # party|date|money|obligation|jurisdiction|law|term_ref
+    value: Mapped[str] = mapped_column(Text)
+    span_start: Mapped[int | None]
+    span_end: Mapped[int | None]
+    payload: Mapped[dict | None] = mapped_column(JSON)
+
+
+class DocumentCitation(Base):
+    """Resolved peraturan reference from an uploaded document into the corpus.
+
+    Example: a contract that says "tunduk pada Pasal 1320 KUHPerdata"
+    gets a DocumentCitation(document_id=..., pasal_id=<Pasal 1320 row
+    in pasal table>, kind=REFERS) so retrieval can expand from the
+    uploaded doc into the corpus and vice versa.
+    """
+
+    __tablename__ = "document_citation"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    document_id: Mapped[int] = mapped_column(ForeignKey("document.id", ondelete="CASCADE"), index=True)
+    pasal_id: Mapped[int] = mapped_column(ForeignKey("pasal.id", ondelete="CASCADE"), index=True)
+    kind: Mapped[CitationKind] = mapped_column(
+        Enum(CitationKind, name="citation_kind", create_type=False)
+    )
+    raw_text: Mapped[str | None] = mapped_column(Text)  # the source phrase we matched
+    __table_args__ = (
+        UniqueConstraint("document_id", "pasal_id", "kind", name="uq_document_citation"),
+    )
+
+
+class DocumentTerm(Base):
+    """A defined term parsed from a contract's Definitions / Ketentuan Umum section.
+
+    "Pihak Penjual" -> "PT Alpha Mandiri, sebuah perseroan terbatas..."
+    These are auto-injected into the retrieval context whenever a
+    chunk uses one of them, so the model never sees an opaque defined
+    term without its definition.
+    """
+
+    __tablename__ = "document_term"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    document_id: Mapped[int] = mapped_column(ForeignKey("document.id", ondelete="CASCADE"), index=True)
+    term: Mapped[str] = mapped_column(String(255))
+    definition: Mapped[str] = mapped_column(Text)
+    span_start: Mapped[int | None]
+    span_end: Mapped[int | None]
+    __table_args__ = (
+        UniqueConstraint("document_id", "term", name="uq_document_term"),
+        Index("ix_document_term_term", "term"),
+    )
+
+
 # ---------- Flows ----------
 
 

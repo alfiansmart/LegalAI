@@ -1,14 +1,15 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { Citation, PasalChip } from "@/components/citation/PasalChip";
-import { CommandDef, SlashPalette } from "@/components/chat/SlashPalette";
 import { TraceEvent, TraceList } from "@/components/chat/TraceChip";
+import { ArtifactRenderer, type Artifact } from "@/components/artifacts/ArtifactRenderer";
 
 type Message = {
   role: "user" | "assistant";
   text: string;
   citations?: Citation[];
+  artifacts?: Artifact[];
   trace?: TraceEvent[];
 };
 
@@ -28,10 +29,8 @@ export default function ChatPage() {
   const [planMode, setPlanMode] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  const slashOpen = input.startsWith("/") && !input.includes("\n");
-
-  async function send(messageOverride?: string) {
-    const text = (messageOverride ?? input).trim();
+  async function send() {
+    const text = input.trim();
     if (!text) return;
     const userMsg: Message = { role: "user", text };
     setMessages((m) => [...m, userMsg]);
@@ -50,18 +49,13 @@ export default function ChatPage() {
       });
       const data = await res.json();
       setSessionId(data.session_id);
-      // Reset session-resetting commands.
-      if (text === "/clear") {
-        setMessages([{ role: "assistant", text: data.reply }]);
-        setPlanMode(false);
-        return;
-      }
       setMessages((m) => [
         ...m,
         {
           role: "assistant",
           text: data.reply,
           citations: data.citations,
+          artifacts: data.artifacts,
           trace: data.trace,
         },
       ]);
@@ -74,11 +68,6 @@ export default function ChatPage() {
     } finally {
       setBusy(false);
     }
-  }
-
-  function onPickCommand(c: CommandDef) {
-    setInput(c.trigger + " ");
-    inputRef.current?.focus();
   }
 
   return (
@@ -105,21 +94,23 @@ export default function ChatPage() {
           {planMode ? "Plan-mode: ON" : "Plan-mode: off"}
         </button>
         <button
-          onClick={() => send("/clear")}
+          onClick={() => {
+            setMessages([]);
+            setSessionId(null);
+          }}
           className="ml-auto px-2 py-1 rounded text-xs bg-white/10"
           disabled={busy}
         >
-          /clear
+          Sesi baru
         </button>
       </div>
 
       <div className="flex-1 overflow-y-auto space-y-3 mb-3">
         {messages.length === 0 && (
           <div className="opacity-50 text-sm space-y-1">
-            <div>Mulai dengan slash command — ketik <code>/</code> untuk lihat daftar.</div>
+            <div>Tanyakan apa saja tentang hukum Indonesia.</div>
             <div className="opacity-70">
-              Contoh: <code>/find syarat sah perjanjian</code> ·
-              <code> /draft nda</code> · <code>/cite Pasal 1320 KUHPerdata</code>
+              Contoh: <em>“Bagaimana syarat sah perjanjian menurut KUHPerdata?”</em>
             </div>
           </div>
         )}
@@ -134,6 +125,13 @@ export default function ChatPage() {
               {m.role === "user" ? "Anda" : "Asisten"}
             </div>
             <div className="whitespace-pre-wrap">{m.text}</div>
+            {m.artifacts && m.artifacts.length > 0 && (
+              <div className="mt-3 space-y-3">
+                {m.artifacts.map((a) => (
+                  <ArtifactRenderer key={a.id} artifact={a} />
+                ))}
+              </div>
+            )}
             {m.trace && <TraceList trace={m.trace} />}
             {m.citations && m.citations.length > 0 && (
               <div className="mt-2 flex flex-wrap gap-1">
@@ -147,36 +145,29 @@ export default function ChatPage() {
         {busy && <div className="opacity-60 text-sm">Asisten sedang berpikir…</div>}
       </div>
 
-      <div className="relative">
-        <SlashPalette
-          query={input}
-          visible={slashOpen}
-          onPick={onPickCommand}
+      <div className="flex gap-2">
+        <textarea
+          ref={inputRef}
+          className="flex-1 bg-white/5 rounded px-3 py-2 resize-none"
+          placeholder="Ketik pesan…"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              send();
+            }
+          }}
+          rows={2}
+          disabled={busy}
         />
-        <div className="flex gap-2">
-          <textarea
-            ref={inputRef}
-            className="flex-1 bg-white/5 rounded px-3 py-2 resize-none"
-            placeholder='Ketik pesan atau "/" untuk slash command…'
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                send();
-              }
-            }}
-            rows={2}
-            disabled={busy}
-          />
-          <button
-            className="px-4 py-2 rounded bg-accent disabled:opacity-50"
-            onClick={() => send()}
-            disabled={busy}
-          >
-            Kirim
-          </button>
-        </div>
+        <button
+          className="px-4 py-2 rounded bg-accent disabled:opacity-50"
+          onClick={() => send()}
+          disabled={busy}
+        >
+          Kirim
+        </button>
       </div>
     </div>
   );

@@ -1,9 +1,18 @@
-import uuid
+"""Free-form chat endpoint.
 
+Free-form chat is the secondary surface in the workspace — the six task
+buttons cover ~90% of legal work; chat is the fallback for "I don't
+know which button I want." The slash-command palette that existed in
+Phase 3 has been removed entirely per product decision.
+
+The endpoint is a thin wrapper around AgentHarness; it threads
+`matter_id` through (so `MATTER.md` is injected into the system prompt)
+and surfaces the agent's structured outputs: text reply, resolved
+pasal citations, visual artifacts, and the tool trace.
+"""
 from fastapi import APIRouter
 from pydantic import BaseModel
 
-from backend.agents import slash
 from backend.agents.harness import AgentHarness
 
 router = APIRouter()
@@ -32,56 +41,22 @@ class ChatResponse(BaseModel):
     session_id: str
     reply: str
     citations: list[CitationOut] = []
+    artifacts: list[dict] = []
     trace: list[dict] = []
 
 
 @router.post("", response_model=ChatResponse)
 async def chat(req: ChatRequest) -> ChatResponse:
-    session_id = req.session_id
-    agent_name = req.agent
-    plan_mode = req.plan_mode
-    user_message = req.message
-
-    # Slash-command rewriting (without exposing a new endpoint).
-    if slash.is_slash(user_message):
-        intent = slash.parse(user_message)
-        if intent is not None:
-            # `/help` and unknown commands return immediately without the LLM.
-            if intent.help_text:
-                return ChatResponse(
-                    session_id=session_id or uuid.uuid4().hex,
-                    reply=intent.help_text,
-                )
-            # `/clear` starts a fresh session.
-            if intent.command == "clear":
-                return ChatResponse(
-                    session_id=uuid.uuid4().hex,
-                    reply="🆕 Sesi baru dimulai.",
-                )
-            # Persona override (e.g. /agent drafter or auto-bound by /draft).
-            if intent.agent:
-                agent_name = intent.agent
-            if intent.plan_mode:
-                plan_mode = True
-            user_message = slash.to_user_message(intent)
-
     harness = AgentHarness(
-        agent_name=agent_name,
-        session_id=session_id,
+        agent_name=req.agent,
+        session_id=req.session_id,
         matter_id=req.matter_id,
     )
-    result = await harness.run(user_message, as_of=req.as_of, plan_mode=plan_mode)
+    result = await harness.run(req.message, as_of=req.as_of, plan_mode=req.plan_mode)
     return ChatResponse(
         session_id=result.session_id,
         reply=result.reply,
         citations=[CitationOut(**c) for c in result.citations],
+        artifacts=result.artifacts,
         trace=result.trace,
     )
-
-
-@router.get("/commands")
-def list_commands() -> list[dict]:
-    return [
-        {"name": name, **spec, "trigger": f"/{name}"}
-        for name, spec in slash.COMMANDS.items()
-    ]

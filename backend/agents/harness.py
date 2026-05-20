@@ -20,6 +20,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from backend.agents import personas
+from backend.agents.artifacts import ArtifactCollector
 from backend.config import get_settings
 from backend.db import models
 from backend.db.session import session_scope
@@ -35,6 +36,7 @@ class HarnessResult:
     session_id: str
     reply: str
     citations: list[dict] = field(default_factory=list)
+    artifacts: list[dict] = field(default_factory=list)
     trace: list[dict] = field(default_factory=list)
 
 
@@ -53,6 +55,7 @@ class AgentHarness:
         self.matter_name: str | None = None
         self.registry = registry or SkillRegistry.from_dir(_settings.skills_dir)
         self.trace: list[dict] = []
+        self.artifacts = ArtifactCollector()
 
     # ------------------------------------------------------------------
     # Public entrypoint
@@ -137,6 +140,16 @@ class AgentHarness:
             tool_results = []
             for tu in tool_uses:
                 result = await self._execute_tool(tu.name, dict(tu.input))
+                # Skills can emit artifacts by returning {"artifacts": [...]}.
+                # We strip them out of what we feed back to the model (the
+                # model doesn't need to re-see the artifact payload, just
+                # know that the artifact was rendered for the user).
+                if isinstance(result, dict) and result.get("artifacts"):
+                    self.artifacts.extend(result["artifacts"])
+                    result = {
+                        **{k: v for k, v in result.items() if k != "artifacts"},
+                        "artifacts_emitted": len(result["artifacts"]),
+                    }
                 self.trace.append(
                     {
                         "event": "tool",
@@ -162,6 +175,7 @@ class AgentHarness:
             session_id=self.session_id,
             reply=ensure_disclaimer(final_text.strip()),
             citations=citations,
+            artifacts=self.artifacts.to_list(),
             trace=self.trace,
         )
 
