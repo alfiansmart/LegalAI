@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { MatterChat } from "@/components/workspace/MatterChat";
+import { TaskCards } from "@/components/workspace/TaskCards";
 
 type Matter = {
   id: number;
@@ -81,9 +82,22 @@ export default function MatterDetail() {
         ))}
       </nav>
 
-      <section className="pt-2">
+      <section className="pt-2 space-y-4">
+        {(tab === "overview" || tab === "documents") && (
+          <TaskCards
+            matterId={matter.id}
+            documentIds={docs.map((d) => d.id)}
+            onComplete={() => {
+              // Refresh docs list after a task completes (upload, draft, research-memo).
+              fetch(`/api/matters/${matter.id}/documents`)
+                .then((r) => r.json())
+                .then(setDocs)
+                .catch(() => {});
+            }}
+          />
+        )}
         {tab === "overview" && <OverviewTab matter={matter} onChange={setMatter} />}
-        {tab === "documents" && <DocumentsTab docs={docs} />}
+        {tab === "documents" && <DocumentsTab docs={docs} matterId={matter.id} />}
         {tab === "chat" && <MatterChat matterId={matter.id} matterName={matter.name} />}
         {tab === "activity" && <ActivityTab events={activity} />}
       </section>
@@ -147,30 +161,86 @@ function OverviewTab({ matter, onChange }: { matter: Matter; onChange: (m: Matte
   );
 }
 
-function DocumentsTab({ docs }: { docs: Doc[] }) {
+function DocumentsTab({ docs, matterId }: { docs: Doc[]; matterId: number }) {
   if (docs.length === 0) {
     return (
       <div className="p-6 rounded-lg border border-dashed border-white/15 opacity-70">
-        Belum ada dokumen di matter ini. Buat draft via tab <em>Chat</em>{" "}
-        (mis. <code>/draft nda</code>), atau upload kontrak di phase berikutnya.
+        Belum ada dokumen di matter ini. Klik <strong>📤 Upload</strong> atau{" "}
+        <strong>✍️ Draft</strong> di atas untuk memulai.
       </div>
     );
   }
   return (
     <ul className="space-y-2">
       {docs.map((d) => (
-        <li key={d.id} className="p-3 rounded border border-white/10 flex items-center gap-3">
-          <span className="text-xs opacity-60 uppercase">{d.kind}</span>
-          <Link href={`/documents/${d.id}`} className="font-semibold hover:text-accent">
-            {d.title}
-          </Link>
-          {d.source_filename && (
-            <span className="text-xs opacity-50">({d.source_filename})</span>
-          )}
-        </li>
+        <DocRow key={d.id} doc={d} matterId={matterId} />
       ))}
     </ul>
   );
+}
+
+function DocRow({ doc, matterId }: { doc: Doc; matterId: number }) {
+  return (
+    <li className="p-3 rounded border border-white/10 flex items-center gap-3 flex-wrap">
+      <span className="text-xs opacity-60 uppercase">{doc.kind}</span>
+      <Link href={`/documents/${doc.id}`} className="font-semibold hover:text-accent">
+        {doc.title}
+      </Link>
+      {doc.source_filename && (
+        <span className="text-xs opacity-50">({doc.source_filename})</span>
+      )}
+      <div className="ml-auto">
+        <PerDocButtons docId={doc.id} matterId={matterId} />
+      </div>
+    </li>
+  );
+}
+
+function PerDocButtons({ docId, matterId }: { docId: number; matterId: number }) {
+  void matterId;
+  const [open, setOpen] = useState<null | "review" | "summarize" | "extract">(null);
+  return (
+    <>
+      <div className="flex gap-1">
+        {(["review", "summarize", "extract"] as const).map((t) => (
+          <button
+            key={t}
+            onClick={() => setOpen(t)}
+            className="text-xs px-2 py-1 rounded bg-white/5 hover:bg-accent/20"
+          >
+            {t === "review" ? "🔍 Review" : t === "summarize" ? "📝 Ringkas" : "🧾 Ekstrak"}
+          </button>
+        ))}
+      </div>
+      {open && <InlineRunner task={open} docId={docId} onClose={() => setOpen(null)} />}
+    </>
+  );
+}
+
+function InlineRunner({
+  task,
+  docId,
+  onClose,
+}: {
+  task: "review" | "summarize" | "extract";
+  docId: number;
+  onClose: () => void;
+}) {
+  // Reuse TaskRunner via dynamic-ish wrapper: feed only one document_id.
+  const [Renderer, setRenderer] = useState<React.ComponentType<{
+    task: "review" | "summarize" | "extract";
+    matterId: number;
+    documentIds: number[];
+    onClose: () => void;
+  }> | null>(null);
+  useEffect(() => {
+    import("@/components/workspace/TaskRunner").then((mod) => {
+      // TaskRunner accepts wider TaskKind; we cast accordingly.
+      setRenderer(() => mod.TaskRunner as unknown as typeof Renderer);
+    });
+  }, []);
+  if (!Renderer) return null;
+  return <Renderer task={task} matterId={0} documentIds={[docId]} onClose={onClose} />;
 }
 
 function ActivityTab({ events }: { events: Activity[] }) {
