@@ -230,6 +230,150 @@ class UserMemory(Base):
     Index("ix_user_memory_user", "user_id")
 
 
+# ---------- Users + collaboration (Phase 7) ----------
+#
+# Until now `user_id` has been a free-form string carried through API
+# endpoints — fine for single-user dev. Phase 7 introduces a real User
+# row plus matter-level membership / roles so a firm can have several
+# lawyers and paralegals sharing a workspace, and an immutable
+# AuditLog so every consequential action is traceable.
+
+
+class UserRole(StrEnum):
+    OWNER = "owner"  # firm admin
+    LAWYER = "lawyer"
+    PARALEGAL = "paralegal"
+    CLIENT = "client"  # read-only on specific matters
+
+
+class User(Base):
+    __tablename__ = "user_account"  # 'user' is a Postgres reserved word
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    email: Mapped[str] = mapped_column(String(255), unique=True)
+    name: Mapped[str] = mapped_column(String(255))
+    role: Mapped[UserRole] = mapped_column(
+        Enum(UserRole, name="user_role"), default=UserRole.LAWYER
+    )
+    api_token_hash: Mapped[str | None] = mapped_column(String(128))
+    is_active: Mapped[bool] = mapped_column(default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+
+class MatterMemberRole(StrEnum):
+    OWNER = "owner"  # can delete the matter
+    EDITOR = "editor"  # can edit documents, run AI tasks
+    REVIEWER = "reviewer"  # can comment + run AI tasks; can't edit
+    VIEWER = "viewer"  # read-only
+
+
+class MatterMember(Base):
+    """Who has access to which matter, and at what role."""
+
+    __tablename__ = "matter_member"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    matter_id: Mapped[int] = mapped_column(
+        ForeignKey("matter.id", ondelete="CASCADE"), index=True
+    )
+    user_id: Mapped[str] = mapped_column(
+        ForeignKey("user_account.id", ondelete="CASCADE"), index=True
+    )
+    role: Mapped[MatterMemberRole] = mapped_column(
+        Enum(MatterMemberRole, name="matter_member_role"),
+        default=MatterMemberRole.EDITOR,
+    )
+    added_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    __table_args__ = (
+        UniqueConstraint("matter_id", "user_id", name="uq_matter_member"),
+    )
+
+
+class Comment(Base):
+    """A human comment on a specific document range.
+
+    Range coordinates are character offsets into the latest version's
+    content. `range_start` / `range_end` may be NULL for document-level
+    comments. `parent_id` allows threaded replies.
+    """
+
+    __tablename__ = "comment"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    document_id: Mapped[int] = mapped_column(
+        ForeignKey("document.id", ondelete="CASCADE"), index=True
+    )
+    user_id: Mapped[str] = mapped_column(
+        ForeignKey("user_account.id", ondelete="SET NULL")
+    )
+    parent_id: Mapped[int | None] = mapped_column(
+        ForeignKey("comment.id", ondelete="CASCADE")
+    )
+    range_start: Mapped[int | None]
+    range_end: Mapped[int | None]
+    body: Mapped[str] = mapped_column(Text)
+    resolved: Mapped[bool] = mapped_column(default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class SuggestionStatus(StrEnum):
+    PENDING = "pending"
+    ACCEPTED = "accepted"
+    REJECTED = "rejected"
+
+
+class Suggestion(Base):
+    """A proposed text replacement (track-changes-style).
+
+    Source is either an AI skill (e.g. contract_review's recommendation)
+    or a human reviewer. On accept, a new DocumentVersion is created
+    with the replacement applied.
+    """
+
+    __tablename__ = "suggestion"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    document_id: Mapped[int] = mapped_column(
+        ForeignKey("document.id", ondelete="CASCADE"), index=True
+    )
+    user_id: Mapped[str | None] = mapped_column(
+        ForeignKey("user_account.id", ondelete="SET NULL")
+    )
+    source: Mapped[str] = mapped_column(String(32))  # ai|human
+    range_start: Mapped[int]
+    range_end: Mapped[int]
+    base_text: Mapped[str] = mapped_column(Text)
+    proposed_text: Mapped[str] = mapped_column(Text)
+    rationale: Mapped[str | None] = mapped_column(Text)
+    status: Mapped[SuggestionStatus] = mapped_column(
+        Enum(SuggestionStatus, name="suggestion_status"),
+        default=SuggestionStatus.PENDING,
+    )
+    resolved_by: Mapped[str | None] = mapped_column(String(64))
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class AuditLog(Base):
+    """Append-only event log: who did what when, on which object.
+
+    Backs compliance ("who saw the merger memo last Tuesday?") and
+    debugging ("why did the obligations table get rewritten?"). Every
+    consequential write operation in routes/* writes one of these.
+    """
+
+    __tablename__ = "audit_log"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[str | None] = mapped_column(String(64))
+    action: Mapped[str] = mapped_column(String(64))  # matter.create|document.upload|task.run|comment.add|...
+    object_kind: Mapped[str | None] = mapped_column(String(32))  # matter|document|comment|...
+    object_id: Mapped[str | None] = mapped_column(String(64))
+    payload: Mapped[dict | None] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    __table_args__ = (
+        Index("ix_audit_log_created", "created_at"),
+        Index("ix_audit_log_object", "object_kind", "object_id"),
+        Index("ix_audit_log_user", "user_id"),
+    )
+
+
 # ---------- Documents (perjanjian / memo / opini) ----------
 
 

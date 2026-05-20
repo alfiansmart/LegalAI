@@ -7,6 +7,7 @@ from backend.config import get_settings
 from backend.routes import (
     agents,
     chat,
+    collab,
     corpus,
     documents,
     flows,
@@ -15,6 +16,7 @@ from backend.routes import (
     search,
     skills,
     tasks,
+    users,
 )
 
 
@@ -58,3 +60,5 @@ app.include_router(matters.router, prefix="/matters", tags=["matters"])
 app.include_router(documents.router, prefix="/documents", tags=["documents"])
 app.include_router(tasks.router, prefix="/tasks", tags=["tasks"])
 app.include_router(flows.router, prefix="/flows", tags=["flows"])
+app.include_router(users.router, prefix="/users", tags=["users"])
+app.include_router(collab.router, tags=["collaboration"])

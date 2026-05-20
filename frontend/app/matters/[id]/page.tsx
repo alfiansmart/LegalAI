@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { MatterChat } from "@/components/workspace/MatterChat";
+import { MatterMembers } from "@/components/workspace/MatterMembers";
 import { TaskCards } from "@/components/workspace/TaskCards";
 
 type Matter = {
@@ -152,9 +153,10 @@ function OverviewTab({ matter, onChange }: { matter: Matter; onChange: (m: Matte
           <div><span className="opacity-60">Slug:</span> <code>{matter.slug}</code></div>
           {matter.description && <div className="opacity-80">{matter.description}</div>}
         </div>
+        <MatterMembers matterId={matter.id} />
         <p className="text-xs opacity-60">
-          Tulis fakta-fakta kunci di sini. Agent akan menggunakannya sebagai
-          konteks tanpa Anda perlu mengulanginya di setiap pesan.
+          Tulis fakta-fakta kunci di MATTER.md. Agent akan menggunakannya
+          sebagai konteks tanpa Anda perlu mengulanginya di setiap pesan.
         </p>
       </aside>
     </div>

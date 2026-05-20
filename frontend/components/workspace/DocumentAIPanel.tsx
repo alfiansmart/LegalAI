@@ -13,6 +13,7 @@ import { useState } from "react";
 import { ArtifactRenderer, type Artifact } from "@/components/artifacts/ArtifactRenderer";
 import { PasalChip, type Citation } from "@/components/citation/PasalChip";
 import { TaskRunner, type TaskKind } from "./TaskRunner";
+import { CommentThread } from "./CommentThread";
 
 type Finding = {
   id?: string;
@@ -140,6 +141,10 @@ export function DocumentAIPanel({ documentId, matterId }: Props) {
           )}
         </div>
       )}
+
+      <div className="border-t border-white/10 pt-3">
+        <CommentThread documentId={documentId} />
+      </div>
 
       {lastFindings && lastFindings.length > 0 && (
         <div className="border-t border-white/10 pt-3 space-y-1">
