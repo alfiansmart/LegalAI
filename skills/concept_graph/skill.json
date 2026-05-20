@@ -1,0 +1,8 @@
+{
+  "id": "concept_graph",
+  "name": "Concept Graph",
+  "version": "0.0.1",
+  "description": "Eksplorasi graph entitas + relasi yang diekstrak dari dokumen-dokumen yang diunggah.",
+  "tools_file": "tools.json",
+  "enabled": true
+}

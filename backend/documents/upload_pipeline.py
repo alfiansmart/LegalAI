@@ -33,6 +33,8 @@ class IngestResult:
     outline_nodes: int
     terms_extracted: int
     citations_inferred: int
+    raptor_nodes: int
+    concept_nodes: int
     text_chars: int
 
 
@@ -93,12 +95,33 @@ async def ingest_uploaded_document(
     # 5) citation backfill
     cits = await _backfill_citations(document_id, text)
 
+    # 6) RAPTOR per-document summary tree (best-effort; non-fatal on failure)
+    raptor_nodes = 0
+    try:
+        from backend.rag.raptor import build_document_tree
+
+        r = await build_document_tree(document_id)
+        raptor_nodes = r.nodes_inserted
+    except Exception as e:  # noqa: BLE001
+        _log.warning("upload_pipeline: raptor build failed: %s", e)
+
+    # 7) concept-graph extraction (best-effort)
+    concept_nodes = 0
+    try:
+        from backend.rag.concept_graph import extract_concepts_for_document
+
+        concept_nodes = await extract_concepts_for_document(document_id, text)
+    except Exception as e:  # noqa: BLE001
+        _log.warning("upload_pipeline: concept extraction failed: %s", e)
+
     return IngestResult(
         document_id=document_id,
         chunks_inserted=len(chunks),
         outline_nodes=outline_nodes,
         terms_extracted=len(terms),
         citations_inferred=cits,
+        raptor_nodes=raptor_nodes,
+        concept_nodes=concept_nodes,
         text_chars=len(text),
     )
 

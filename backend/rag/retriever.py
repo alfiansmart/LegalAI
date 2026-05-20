@@ -52,6 +52,7 @@ class HybridRetriever:
         matter_id: int | None = None,
         rerank: bool = True,
         rerank_top_k: int | None = None,
+        include_raptor: bool = True,
     ) -> list[dict]:
         from backend.rag.embeddings import embed_one
 
@@ -67,6 +68,12 @@ class HybridRetriever:
         if matter_id is not None:
             chunk_hits = await self._document_chunk_search(q, qvec, candidate_k, matter_id)
             hits.extend(chunk_hits)
+
+        # RAPTOR — mix in branch summaries so broad/aggregate queries get
+        # the right Bab / document-level node alongside leaf pasal.
+        if include_raptor:
+            branch_hits = await self._raptor_branch_search(qvec, k=min(5, candidate_k))
+            hits.extend(branch_hits)
 
         # Expansion stages — only on the candidate set, before rerank.
         await self._inject_definitions(hits)
@@ -214,6 +221,32 @@ class HybridRetriever:
                 }
             )
         return hits
+
+    # ------------------------------------------------------------------
+    # RAPTOR branch mix-in
+    # ------------------------------------------------------------------
+
+    async def _raptor_branch_search(self, qvec: list[float], k: int = 5) -> list[dict]:
+        from backend.rag.raptor import search_branches
+
+        try:
+            rows = await search_branches(qvec, k=k, level_min=1)
+        except Exception:  # noqa: BLE001 — raptor_node may not exist yet in early dev
+            return []
+        out: list[dict] = []
+        for r in rows:
+            out.append(
+                {
+                    "source": "raptor",
+                    "raptor_id": r["id"],
+                    "raptor_level": r["level"],
+                    "title": r["title"],
+                    "score": r["score"],
+                    "snippet": (r["summary"] or "")[:300],
+                    "summary": r["summary"] or "",
+                }
+            )
+        return out
 
     # ------------------------------------------------------------------
     # Stage 3: defined-terms injection

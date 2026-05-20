@@ -1,0 +1,19 @@
+[
+  {
+    "id": "concept_neighborhood",
+    "name": "concept_neighborhood",
+    "description": "Ambil neighborhood (k-hop) di concept graph sekitar sebuah label. Mengembalikan graph artifact siap render.",
+    "function": {
+      "name": "concept_neighborhood",
+      "description": "Fetch entities and edges around a concept label.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "label": {"type": "string", "description": "Label entitas (mis. 'Pihak Penjual')."},
+          "hops": {"type": "integer", "default": 1, "description": "Jumlah hop yang ditelusuri."}
+        },
+        "required": ["label"]
+      }
+    }
+  }
+]

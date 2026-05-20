@@ -105,6 +105,24 @@ async def embed_pending(limit: int = 1000) -> dict:
     return {"scanned": stats.scanned, "embedded": stats.embedded, "skipped": stats.skipped}
 
 
+@router.post("/raptor/build")
+async def raptor_build(peraturan_ids: list[int] | None = None) -> dict:
+    """(Re)build the RAPTOR summary tree over the peraturan corpus.
+
+    Pass `peraturan_ids` to limit to a subset; omit to rebuild the
+    whole corpus. Idempotent — existing raptor_node rows for the same
+    peraturan_id are wiped first.
+    """
+    from backend.rag.raptor import build_corpus_tree
+
+    result = await build_corpus_tree(peraturan_ids=peraturan_ids)
+    return {
+        "nodes_inserted": result.nodes_inserted,
+        "levels_built": result.levels_built,
+        "skipped_missing_summary": result.skipped_missing_summary,
+    }
+
+
 def _peraturan_label(p) -> str:
     jenis = p.jenis.value if hasattr(p.jenis, "value") else p.jenis
     if jenis in {"KUHP", "KUHPerdata", "KUHAP", "UUD"}:

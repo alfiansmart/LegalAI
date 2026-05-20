@@ -51,13 +51,20 @@ PERSONAS: dict[str, Persona] = {
             "document_summarize",
             "document_extract",
             "compare_with_commentary",
+            "concept_graph",
         ],
     ),
     "researcher": Persona(
         id="researcher",
         name="Legal Researcher",
         system_prompt=_BASE_RULES + "\nFokus: riset hukum mendalam dengan citation trace & memo.",
-        skills=["peraturan_search", "citation_trace", "legal_memo", "agentic_search"],
+        skills=[
+            "peraturan_search",
+            "citation_trace",
+            "legal_memo",
+            "agentic_search",
+            "concept_graph",
+        ],
     ),
 }
 
