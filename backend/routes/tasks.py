@@ -225,3 +225,73 @@ class ExtractReq(BaseModel):
 @router.post("/extract-facts")
 async def extract_facts(req: ExtractReq) -> dict:
     return await _call_skill_tool("document_extract", {"document_id": req.document_id})
+
+
+# ---------------------------------------------------------------------------
+# 🪄 AI-assisted drafting (Phase 9)
+# ---------------------------------------------------------------------------
+#
+# Three task buttons that wrap the draft_compose skill so the lawyer
+# can (a) generate a draft from a description, (b) ask the AI to
+# revise a selected range, or (c) ask the AI to draft a new clause and
+# splice it in. (b) and (c) produce Suggestion rows that flow through
+# the existing accept/reject endpoints, so a single review surface
+# handles every AI proposal.
+
+
+class DraftFromDescriptionReq(BaseModel):
+    description: str
+    doc_kind: str = "perjanjian"
+    matter_id: int | None = None
+    title: str | None = None
+
+
+@router.post("/draft-from-description")
+async def draft_from_description(req: DraftFromDescriptionReq) -> dict:
+    return await _call_skill_tool(
+        "draft_from_description",
+        {
+            "description": req.description,
+            "doc_kind": req.doc_kind,
+            "matter_id": req.matter_id,
+            "title": req.title,
+        },
+    )
+
+
+class DraftReviseReq(BaseModel):
+    document_id: int
+    instruction: str
+    range_start: int | None = None
+    range_end: int | None = None
+
+
+@router.post("/draft-revise")
+async def draft_revise(req: DraftReviseReq) -> dict:
+    return await _call_skill_tool(
+        "draft_revise_section",
+        {
+            "document_id": req.document_id,
+            "instruction": req.instruction,
+            "range_start": req.range_start,
+            "range_end": req.range_end,
+        },
+    )
+
+
+class DraftInsertClauseReq(BaseModel):
+    document_id: int
+    clause_type: str
+    after_section: str | None = None
+
+
+@router.post("/draft-insert-clause")
+async def draft_insert_clause(req: DraftInsertClauseReq) -> dict:
+    return await _call_skill_tool(
+        "draft_insert_clause",
+        {
+            "document_id": req.document_id,
+            "clause_type": req.clause_type,
+            "after_section": req.after_section,
+        },
+    )

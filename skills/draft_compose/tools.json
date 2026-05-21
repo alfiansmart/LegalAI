@@ -1,0 +1,68 @@
+[
+  {
+    "id": "draft_from_description",
+    "name": "draft_from_description",
+    "description": "Generate a fully-structured Indonesian perjanjian draft from a natural-language description. No template required.",
+    "function": {
+      "name": "draft_from_description",
+      "description": "Compose a tailored perjanjian from a natural-language brief.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "description": {
+            "type": "string",
+            "description": "Free-form description of what the document should cover."
+          },
+          "doc_kind": {
+            "type": "string",
+            "description": "perjanjian|memo|opini|somasi|gugatan|surat_kuasa|lainnya",
+            "default": "perjanjian"
+          },
+          "matter_id": {"type": "integer"},
+          "title": {"type": "string"}
+        },
+        "required": ["description"]
+      }
+    }
+  },
+  {
+    "id": "draft_revise_section",
+    "name": "draft_revise_section",
+    "description": "Propose a rewrite of an existing document range. Returns Suggestion rows the user accepts/rejects.",
+    "function": {
+      "name": "draft_revise_section",
+      "description": "Propose a track-changes rewrite scoped to a range.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "document_id": {"type": "integer"},
+          "instruction": {
+            "type": "string",
+            "description": "What to change, e.g. 'buat pasal pengakhiran lebih ketat'."
+          },
+          "range_start": {"type": "integer", "description": "Char offset (omit = whole doc)."},
+          "range_end": {"type": "integer", "description": "Char offset (omit = whole doc)."}
+        },
+        "required": ["document_id", "instruction"]
+      }
+    }
+  },
+  {
+    "id": "draft_insert_clause",
+    "name": "draft_insert_clause",
+    "description": "Generate a new clause (force_majeure / data_protection / non_solicitation / free-form) that fits the existing draft's tone, and propose its insertion as a Suggestion.",
+    "function": {
+      "name": "draft_insert_clause",
+      "description": "Generate a new clause and queue it as an insert-style Suggestion.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "document_id": {"type": "integer"},
+          "clause_type": {"type": "string", "description": "Slug like 'force_majeure' or a free-form description."},
+          "after_section": {"type": "string", "description": "Insert after this Pasal/Section title; omit for end-of-doc."}
+        },
+        "required": ["document_id", "clause_type"]
+      }
+    }
+  }
+]

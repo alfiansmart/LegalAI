@@ -1,0 +1,8 @@
+{
+  "id": "draft_compose",
+  "name": "Draft Compose (AI-assisted)",
+  "version": "0.0.1",
+  "description": "Generate a tailored Indonesian legal document from a natural-language description, and propose revisions to existing drafts.",
+  "tools_file": "tools.json",
+  "enabled": true
+}

@@ -14,6 +14,8 @@ import { ArtifactRenderer, type Artifact } from "@/components/artifacts/Artifact
 import { PasalChip, type Citation } from "@/components/citation/PasalChip";
 import { TaskRunner, type TaskKind } from "./TaskRunner";
 import { CommentThread } from "./CommentThread";
+import { ReviseWithAI } from "./ReviseWithAI";
+import { SuggestionsPanel } from "./SuggestionsPanel";
 
 type Finding = {
   id?: string;
@@ -43,6 +45,9 @@ type QAResponse = {
 export function DocumentAIPanel({ documentId, matterId }: Props) {
   const [activeTask, setActiveTask] = useState<TaskKind | null>(null);
   const [lastFindings, setLastFindings] = useState<Finding[] | null>(null);
+  // Bump this counter to remount SuggestionsPanel after a Revise call so
+  // newly-queued suggestions render without an extra interaction.
+  const [suggestionsTick, setSuggestionsTick] = useState(0);
   const [question, setQuestion] = useState("");
   const [busy, setBusy] = useState(false);
   const [qa, setQa] = useState<QAResponse | null>(null);
@@ -141,6 +146,20 @@ export function DocumentAIPanel({ documentId, matterId }: Props) {
           )}
         </div>
       )}
+
+      <div className="border-t border-white/10 pt-3">
+        <ReviseWithAI
+          documentId={documentId}
+          onQueued={() => setSuggestionsTick((t) => t + 1)}
+        />
+      </div>
+
+      <div className="border-t border-white/10 pt-3">
+        <SuggestionsPanel
+          key={suggestionsTick}
+          documentId={documentId}
+        />
+      </div>
 
       <div className="border-t border-white/10 pt-3">
         <CommentThread documentId={documentId} />

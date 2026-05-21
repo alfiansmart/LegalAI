@@ -157,11 +157,20 @@ function UploadForm({ matterId, onClose }: { matterId: number; onClose: () => vo
 // ---------- Draft ----------
 
 function DraftForm({ matterId }: { matterId: number }) {
+  // Two drafting modes:
+  //   "template"    — classic flow: pick template, fill params (rigid)
+  //   "describe"    — AI-assisted: describe the doc in plain Bahasa,
+  //                   AI generates a full structure (no template needed)
+  const [mode, setMode] = useState<"template" | "describe">("describe");
   const [templates, setTemplates] = useState<{ id: string; title: string }[]>([]);
   const [templateId, setTemplateId] = useState("");
   const [partiesRaw, setPartiesRaw] = useState("PT Alpha\nPT Beta");
   const [paramsRaw, setParamsRaw] = useState("{}");
   const [includeClauses, setIncludeClauses] = useState("force_majeure,arbitrase_bani");
+  const [description, setDescription] = useState(
+    "NDA dua arah antara PT Alpha (vendor IT) dan PT Beta (klien), jangka waktu 24 bulan, mencakup force majeure dan arbitrase BANI."
+  );
+  const [docKind, setDocKind] = useState("perjanjian");
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<TaskResult | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -180,18 +189,31 @@ function DraftForm({ matterId }: { matterId: number }) {
     setBusy(true);
     setErr(null);
     try {
-      const body = {
-        template_id: templateId,
-        parties: partiesRaw.split("\n").map((p) => p.trim()).filter(Boolean),
-        params: JSON.parse(paramsRaw || "{}"),
-        include_clauses: includeClauses.split(",").map((s) => s.trim()).filter(Boolean),
-        matter_id: matterId,
-      };
-      const res = await fetch("/api/tasks/draft", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
+      let res: Response;
+      if (mode === "describe") {
+        res = await fetch("/api/tasks/draft-from-description", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            description,
+            doc_kind: docKind,
+            matter_id: matterId,
+          }),
+        });
+      } else {
+        const body = {
+          template_id: templateId,
+          parties: partiesRaw.split("\n").map((p) => p.trim()).filter(Boolean),
+          params: JSON.parse(paramsRaw || "{}"),
+          include_clauses: includeClauses.split(",").map((s) => s.trim()).filter(Boolean),
+          matter_id: matterId,
+        };
+        res = await fetch("/api/tasks/draft", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+      }
       if (!res.ok) throw new Error(await res.text());
       setResult(await res.json());
     } catch (e) {
@@ -207,18 +229,86 @@ function DraftForm({ matterId }: { matterId: number }) {
 
   return (
     <div className="space-y-3 text-sm">
-      <label className="block">
-        <span className="text-xs opacity-60">Template</span>
-        <select
-          value={templateId}
-          onChange={(e) => setTemplateId(e.target.value)}
-          className="w-full bg-white/5 rounded px-2 py-1"
-        >
-          {templates.map((t) => (
-            <option key={t.id} value={t.id}>{t.title}</option>
-          ))}
-        </select>
-      </label>
+      <div className="flex gap-1 text-xs">
+        {(["describe", "template"] as const).map((m) => (
+          <button
+            key={m}
+            onClick={() => setMode(m)}
+            className={`px-2 py-1 rounded ${
+              mode === m ? "bg-accent" : "bg-white/5 hover:bg-white/10"
+            }`}
+          >
+            {m === "describe" ? "🪄 Deskripsikan saja" : "📋 Pilih template"}
+          </button>
+        ))}
+      </div>
+
+      {mode === "describe" && (
+        <>
+          <label className="block">
+            <span className="text-xs opacity-60">
+              Deskripsi dokumen (Bahasa Indonesia bebas — para pihak, tujuan,
+              jangka waktu, klausa penting, dst.)
+            </span>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              className="w-full bg-white/5 rounded px-2 py-1 text-xs"
+              rows={6}
+              placeholder="Contoh: Perjanjian sewa-menyewa ruko di Jakarta antara PT Alpha (penyewa) dan Pak Budi (pemilik), 3 tahun, harga sewa Rp 200 juta per tahun, deposit 3 bulan, opsi perpanjangan otomatis…"
+            />
+          </label>
+          <label className="block">
+            <span className="text-xs opacity-60">Jenis dokumen</span>
+            <select
+              value={docKind}
+              onChange={(e) => setDocKind(e.target.value)}
+              className="w-full bg-white/5 rounded px-2 py-1"
+            >
+              {[
+                "perjanjian",
+                "memo",
+                "opini",
+                "somasi",
+                "gugatan",
+                "surat_kuasa",
+                "lainnya",
+              ].map((k) => (
+                <option key={k} value={k}>{k}</option>
+              ))}
+            </select>
+          </label>
+          {err && <div className="text-xs text-rose-300">{err}</div>}
+          <button
+            onClick={submit}
+            disabled={busy || !description.trim()}
+            className="px-3 py-1 rounded bg-accent text-sm disabled:opacity-40"
+          >
+            {busy ? "Menyusun…" : "Buat draft (AI)"}
+          </button>
+          <div className="text-xs opacity-60 pt-2 border-t border-white/10">
+            Setelah draft selesai, Anda dapat menyempurnakan lewat tombol{" "}
+            <em>Revise dengan AI</em> di halaman dokumen — pilih teks,
+            beri instruksi, dan AI mengusulkan revisi yang bisa Anda
+            terima atau tolak per perubahan.
+          </div>
+        </>
+      )}
+
+      {mode === "template" && (
+        <>
+          <label className="block">
+            <span className="text-xs opacity-60">Template</span>
+            <select
+              value={templateId}
+              onChange={(e) => setTemplateId(e.target.value)}
+              className="w-full bg-white/5 rounded px-2 py-1"
+            >
+              {templates.map((t) => (
+                <option key={t.id} value={t.id}>{t.title}</option>
+              ))}
+            </select>
+          </label>
       <label className="block">
         <span className="text-xs opacity-60">Para Pihak (satu baris satu pihak)</span>
         <textarea
@@ -237,22 +327,24 @@ function DraftForm({ matterId }: { matterId: number }) {
           rows={3}
         />
       </label>
-      <label className="block">
-        <span className="text-xs opacity-60">Klausa standar (CSV)</span>
-        <input
-          value={includeClauses}
-          onChange={(e) => setIncludeClauses(e.target.value)}
-          className="w-full bg-white/5 rounded px-2 py-1"
-        />
-      </label>
-      {err && <div className="text-xs text-rose-300">{err}</div>}
-      <button
-        onClick={submit}
-        disabled={busy || !templateId}
-        className="px-3 py-1 rounded bg-accent text-sm disabled:opacity-40"
-      >
-        {busy ? "Menyusun…" : "Buat draft"}
-      </button>
+          <label className="block">
+            <span className="text-xs opacity-60">Klausa standar (CSV)</span>
+            <input
+              value={includeClauses}
+              onChange={(e) => setIncludeClauses(e.target.value)}
+              className="w-full bg-white/5 rounded px-2 py-1"
+            />
+          </label>
+          {err && <div className="text-xs text-rose-300">{err}</div>}
+          <button
+            onClick={submit}
+            disabled={busy || !templateId}
+            className="px-3 py-1 rounded bg-accent text-sm disabled:opacity-40"
+          >
+            {busy ? "Menyusun…" : "Buat draft"}
+          </button>
+        </>
+      )}
     </div>
   );
 }

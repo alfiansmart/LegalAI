@@ -38,7 +38,7 @@ PERSONAS: dict[str, Persona] = {
         id="drafter",
         name="Drafter Kontrak",
         system_prompt=_BASE_RULES + "\nFokus: menyusun draft perjanjian dari template & parameter.",
-        skills=["contract_draft", "clause_library", "pasal_lookup"],
+        skills=["contract_draft", "draft_compose", "clause_library", "pasal_lookup"],
     ),
     "reviewer": Persona(
         id="reviewer",
