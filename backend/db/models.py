@@ -37,13 +37,30 @@ def count(model):
 
 
 class JenisPeraturan(StrEnum):
-    UUD = "UUD"
+    # Article 7 hierarchy
+    UUD = "UUD"  # Constitution
+    TAP_MPR = "TapMPR"  # Ketetapan MPR
     UU = "UU"
     PERPPU = "Perppu"
     PP = "PP"
     PERPRES = "Perpres"
-    PERMEN = "Permen"
-    PERDA = "Perda"
+    PERDA_PROV = "PerdaProv"
+    PERDA_KAB = "PerdaKab"  # Kabupaten/Kota
+    # Article 8 — body-issued regulations (binding by source authority)
+    PERMEN = "Permen"  # Peraturan Menteri (use `kementerian` column for specifics)
+    PERMA = "Perma"  # Peraturan MA
+    SEMA = "SEMA"  # Surat Edaran MA
+    PER_MK = "PerMK"  # Peraturan MK
+    PER_KPU = "PerKPU"
+    POJK = "POJK"  # Otoritas Jasa Keuangan
+    PBI = "PBI"  # Peraturan Bank Indonesia
+    PADG = "PADG"  # Peraturan Anggota Dewan Gubernur BI
+    PERKA = "Perka"  # Peraturan Kepala (lembaga / badan)
+    PUTUSAN_MK = "PutusanMK"
+    PUTUSAN_MA = "PutusanMA"
+    QANUN = "Qanun"  # Aceh
+    # Legacy / aggregated kitab
+    PERDA = "Perda"  # kept for backward compatibility; new rows should use PerdaProv / PerdaKab
     KUHP = "KUHP"
     KUHPERDATA = "KUHPerdata"
     KUHAP = "KUHAP"
@@ -77,12 +94,40 @@ class Peraturan(Base):
     raw_text: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
+    # ---- Hierarchy + promulgation metadata (Phase 8) -----------------------
+    # `hierarchy_level` is the level computed from `jenis` per UU 12/2011.
+    # Persisted (instead of always derived) so SQL queries can sort/filter
+    # by authority without joining a constants table.
+    hierarchy_level: Mapped[int | None]
+
+    # Closing-clause metadata. These are the ground truth that downstream
+    # questions about "is this still in force?" / "what amended it?" rely on.
+    ditetapkan_di: Mapped[str | None] = mapped_column(String(128))  # e.g. "Jakarta"
+    lembaran_negara: Mapped[str | None] = mapped_column(
+        String(128)
+    )  # "LN 2003 No. 39"
+    tambahan_lembaran_negara: Mapped[str | None] = mapped_column(
+        String(128)
+    )  # "TLN No. 4279"
+    berita_negara: Mapped[str | None] = mapped_column(
+        String(128)
+    )  # used for Permen and below
+
+    # Source authority disambiguators.
+    kementerian: Mapped[str | None] = mapped_column(
+        String(255)
+    )  # e.g. "Tenaga Kerja" for Permenaker
+    daerah: Mapped[str | None] = mapped_column(
+        String(255)
+    )  # e.g. "Jawa Barat" / "DKI Jakarta / Bandung"
+
     pasal: Mapped[list[Pasal]] = relationship(back_populates="peraturan", cascade="all, delete-orphan")
     bab: Mapped[list[Bab]] = relationship(back_populates="peraturan", cascade="all, delete-orphan")
 
     __table_args__ = (
         UniqueConstraint("jenis", "nomor", "tahun", name="uq_peraturan_natural"),
         Index("ix_peraturan_tahun", "tahun"),
+        Index("ix_peraturan_level", "hierarchy_level"),
     )
 
 

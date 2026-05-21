@@ -142,6 +142,7 @@ class HybridRetriever:
             )
             SELECT pasal.id, pasal.nomor AS pasal_nomor, pasal.teks,
                    p.jenis, p.nomor AS p_nomor, p.tahun, p.judul,
+                   p.hierarchy_level,
                    merged.score
             FROM merged
             JOIN pasal ON pasal.id = merged.pasal_id
@@ -154,9 +155,14 @@ class HybridRetriever:
         async with session_scope() as s:
             rows = (await s.execute(sql, params)).all()
 
+        from backend.legal.hierarchy import hierarchy_boost
+
         hits: list[dict] = []
         for r in rows:
             label = _peraturan_label(r.jenis, r.p_nomor, r.tahun)
+            base_score = float(r.score)
+            level = r.hierarchy_level
+            boost = hierarchy_boost(level)
             hits.append(
                 {
                     "source": "pasal",
@@ -165,11 +171,17 @@ class HybridRetriever:
                     "pasal": r.pasal_nomor,
                     "ayat": None,
                     "huruf": None,
-                    "score": float(r.score),
+                    "hierarchy_level": level,
+                    "score": base_score + boost,
+                    "_base_score": base_score,
+                    "_hierarchy_boost": boost,
                     "snippet": (r.teks or "")[:300],
                     "teks": r.teks or "",
                 }
             )
+        # Re-sort after the boost so two equally-relevant rows go to the
+        # higher-authority one (lex superior).
+        hits.sort(key=lambda h: h["score"], reverse=True)
         return hits
 
     # ------------------------------------------------------------------

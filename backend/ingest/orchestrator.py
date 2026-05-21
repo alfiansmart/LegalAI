@@ -109,11 +109,20 @@ async def _persist_parsed(parsed) -> tuple[int, int]:
     Reuses the seed_loader-style semantics: skip insertion if a row
     with the same (jenis, nomor, tahun) already exists. Returns
     (peraturan_id, pasal_inserted).
+
+    Phase 8: also runs the promulgation parser over the raw text so
+    `tanggal_diundangkan`, `lembaran_negara`, `effective_from`, the
+    `ditetapkan_di` city and the hierarchy level all land on the row.
+    Repealed / amended peraturan refs are resolved into CitationEdge
+    rows here as well — that closes the "what does this kill" half of
+    the knowledge graph that flat ingest leaves out.
     """
     from sqlalchemy import select
 
     from backend.db import models
     from backend.db.session import session_scope
+    from backend.legal.hierarchy import level_of
+    from backend.legal.promulgation import parse_promulgation
 
     async with session_scope() as s:
         existing = (
@@ -128,6 +137,19 @@ async def _persist_parsed(parsed) -> tuple[int, int]:
         if existing:
             return existing.id, 0
 
+        # Compose the haystack the promulgation parser scans: the body
+        # text we just parsed (the parser also receives the original
+        # cleartext via parsed.tentang when available, but the closing
+        # clauses usually live in the body). We rebuild a flat string
+        # because Phase 6's parser only kept the structural pasal/ayat
+        # tree.
+        body_text = "\n".join(
+            (p.teks or "")
+            + ("\n" + "\n".join(f"({a['nomor']}) {a.get('teks', '')}" for a in p.ayat) if p.ayat else "")
+            for p in parsed.pasal
+        )
+        promul = parse_promulgation(body_text)
+
         per = models.Peraturan(
             jenis=models.JenisPeraturan(parsed.jenis),
             nomor=parsed.nomor,
@@ -137,9 +159,24 @@ async def _persist_parsed(parsed) -> tuple[int, int]:
             status=models.StatusPeraturan(parsed.status or "berlaku"),
             penerbit=parsed.penerbit,
             source_url=parsed.source_url,
+            hierarchy_level=level_of(parsed.jenis),
+            ditetapkan_di=promul.ditetapkan_di,
+            tanggal_ditetapkan=promul.tanggal_ditetapkan,
+            tanggal_diundangkan=promul.tanggal_diundangkan,
+            lembaran_negara=promul.lembaran_negara,
+            tambahan_lembaran_negara=promul.tambahan_lembaran_negara,
+            berita_negara=promul.berita_negara,
         )
         s.add(per)
         await s.flush()
+        # Resolve repealed / amended references → CitationEdge rows.
+        # Best-effort: failures don't fail the ingest.
+        try:
+            await _record_repeal_amend_edges(per.id, promul)
+        except Exception as e:  # noqa: BLE001
+            _log.warning(
+                "_persist_parsed: repeal/amend edge resolution failed: %s", e
+            )
         pasal_inserted = 0
         for p in parsed.pasal:
             pasal_row = models.Pasal(peraturan_id=per.id, nomor=p.nomor, teks=p.teks)
@@ -161,3 +198,116 @@ async def _persist_parsed(parsed) -> tuple[int, int]:
                         )
                     )
         return per.id, pasal_inserted
+
+
+async def _record_repeal_amend_edges(src_peraturan_id: int, promul) -> None:
+    """Resolve "Peraturan X dicabut" / "sebagaimana telah diubah dengan Peraturan Y"
+    references into CitationEdge rows.
+
+    Each referenced peraturan is looked up by (jenis, nomor, tahun); when
+    found, we insert an edge from the *first* pasal of the source row to
+    the *first* pasal of the target. CitationEdge is a pasal-level graph
+    in the current schema; future work may add a peraturan-level edge
+    table, but for now the first-pasal anchor is a faithful proxy.
+    """
+    import re
+
+    from sqlalchemy import select
+
+    from backend.db import models
+    from backend.db.session import session_scope
+
+    _REF_PARSE_RE = re.compile(
+        r"(?P<jenis>[A-Za-z][A-Za-z .]+?)\s+No\.?\s*(?P<no>[A-Za-z0-9./-]+)"
+        r"\s+Tahun\s+(?P<year>\d{4})",
+        re.I,
+    )
+
+    def _refs_with_kind() -> list[tuple[str, str, str, str, str]]:
+        from backend.rag.citation import _normalise_jenis  # type: ignore
+
+        out: list[tuple[str, str, str, str, str]] = []
+        for raw in promul.repealed_refs:
+            m = _REF_PARSE_RE.search(raw)
+            if m:
+                canon, _ = _normalise_jenis(m["jenis"])
+                out.append(
+                    (canon, m["no"], m["year"], "repeals", raw)
+                )
+        for raw in promul.amended_refs:
+            m = _REF_PARSE_RE.search(raw)
+            if m:
+                canon, _ = _normalise_jenis(m["jenis"])
+                # Direction: this row is *amending* the older row; the edge
+                # source is the new row, destination is the older one.
+                out.append(
+                    (canon, m["no"], m["year"], "amends", raw)
+                )
+        return out
+
+    refs = _refs_with_kind()
+    if not refs:
+        return
+
+    async with session_scope() as s:
+        # First pasal of the source peraturan.
+        src_pasal = (
+            (
+                await s.execute(
+                    select(models.Pasal.id)
+                    .where(models.Pasal.peraturan_id == src_peraturan_id)
+                    .order_by(models.Pasal.id)
+                    .limit(1)
+                )
+            )
+            .scalars()
+            .first()
+        )
+        if src_pasal is None:
+            return
+
+        for canon, no, year, kind_str, raw in refs:
+            try:
+                target_per = (
+                    await s.execute(
+                        select(models.Peraturan).where(
+                            models.Peraturan.jenis == models.JenisPeraturan(canon),
+                            models.Peraturan.nomor == no,
+                            models.Peraturan.tahun == int(year),
+                        )
+                    )
+                ).scalar_one_or_none()
+            except ValueError:
+                # Unknown JenisPeraturan token; skip silently.
+                continue
+            if target_per is None:
+                continue
+            target_pasal = (
+                (
+                    await s.execute(
+                        select(models.Pasal.id)
+                        .where(models.Pasal.peraturan_id == target_per.id)
+                        .order_by(models.Pasal.id)
+                        .limit(1)
+                    )
+                )
+                .scalars()
+                .first()
+            )
+            if target_pasal is None:
+                continue
+            try:
+                kind_enum = models.CitationKind(kind_str)
+            except ValueError:
+                kind_enum = models.CitationKind.REFERS
+            s.add(
+                models.CitationEdge(
+                    src_pasal_id=src_pasal,
+                    dst_pasal_id=target_pasal,
+                    kind=kind_enum,
+                )
+            )
+            try:
+                await s.flush()
+            except Exception:  # noqa: BLE001 — duplicate key, race, etc.
+                await s.rollback()

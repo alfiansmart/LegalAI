@@ -146,6 +146,24 @@ async def citation_backfill(peraturan_id: int | None = None, limit: int | None =
     }
 
 
+@router.post("/hierarchy/backfill")
+async def hierarchy_backfill(limit: int | None = None) -> dict:
+    """Populate Phase 8 columns (hierarchy_level + promulgation metadata)
+    on rows ingested before the schema change.
+
+    Idempotent — only fills columns that are currently NULL. Pass
+    `limit` to chunk large rebuilds.
+    """
+    from backend.legal.backfill import backfill_hierarchy_and_promulgation
+
+    stats = await backfill_hierarchy_and_promulgation(limit=limit)
+    return {
+        "scanned": stats.scanned,
+        "level_set": stats.level_set,
+        "promul_fields_set": stats.promul_fields_set,
+    }
+
+
 @router.post("/ingest/url")
 async def ingest_url(url: str, source: str = "bpk") -> dict:
     """Scrape a peraturan URL end-to-end: parse → persist → embed →
