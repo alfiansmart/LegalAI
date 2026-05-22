@@ -43,14 +43,14 @@ async def hypothetical_answer(query: str) -> str:
         settings = get_settings()
     except Exception:  # noqa: BLE001
         return query
-    if not settings.anthropic_api_key:
+    if not settings.llm_api_key():
         return query
-    from anthropic import AsyncAnthropic
+    from backend.llm import get_client
 
-    client = AsyncAnthropic(api_key=settings.anthropic_api_key)
+    client = get_client()
     try:
         resp = await client.messages.create(
-            model=settings.anthropic_model_fast,
+            model="fast",
             max_tokens=350,
             messages=[{"role": "user", "content": _PROMPT.format(q=query)}],
         )

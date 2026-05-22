@@ -52,7 +52,7 @@ Kembalikan HANYA JSON valid (tanpa fence ```) dengan skema:
 
 
 async def execute(agent=None, args: dict | None = None) -> dict:
-    from anthropic import AsyncAnthropic
+    from backend.llm import get_client
 
     args = args or {}
     document_id = args.get("document_id")
@@ -94,8 +94,8 @@ async def execute(agent=None, args: dict | None = None) -> dict:
         return {"status": "error", "message": "document has no content"}
 
     settings = get_settings()
-    if not settings.anthropic_api_key:
-        return {"status": "error", "message": "ANTHROPIC_API_KEY not set"}
+    if not settings.llm_api_key():
+        return {"status": "error", "message": "LLM provider API key not configured"}
 
     # Build the outline markdown checklist + a hierarchical tree for the
     # artifact in one pass.
@@ -106,9 +106,9 @@ async def execute(agent=None, args: dict | None = None) -> dict:
         document_text=text[:120_000],  # generous budget
     )
 
-    client = AsyncAnthropic(api_key=settings.anthropic_api_key)
+    client = get_client()
     resp = await client.messages.create(
-        model=settings.anthropic_model_default,
+        model="default",
         max_tokens=4096,
         messages=[{"role": "user", "content": prompt}],
     )

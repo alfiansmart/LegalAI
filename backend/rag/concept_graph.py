@@ -76,19 +76,18 @@ async def extract_concepts_for_document(document_id: int, full_text: str) -> int
         from backend.config import get_settings
 
         settings = get_settings()
-        api_key = settings.anthropic_api_key
-        model = settings.anthropic_model_default
+        api_key = settings.llm_api_key()
     except Exception:  # noqa: BLE001
         return 0
     if not api_key:
         return 0
 
-    from anthropic import AsyncAnthropic
+    from backend.llm import get_client
 
-    client = AsyncAnthropic(api_key=api_key)
+    client = get_client()
     try:
         resp = await client.messages.create(
-            model=model,
+            model="default",
             max_tokens=2048,
             messages=[{"role": "user", "content": _EXTRACT_PROMPT.format(text=full_text[:30_000])}],
         )

@@ -27,9 +27,9 @@ Bukti yang tersedia:
 
 
 async def execute(agent=None, args: dict | None = None) -> dict:
-    from anthropic import AsyncAnthropic
     from backend.config import get_settings
     from backend.documents import service, templates
+    from backend.llm import get_client
 
     args = args or {}
     issue = args.get("issue") or ""
@@ -37,8 +37,8 @@ async def execute(agent=None, args: dict | None = None) -> dict:
     evidence = args.get("evidence") or []
 
     settings = get_settings()
-    if not settings.anthropic_api_key:
-        return {"status": "error", "message": "ANTHROPIC_API_KEY not set"}
+    if not settings.llm_api_key():
+        return {"status": "error", "message": "LLM provider API key not configured"}
 
     evidence_block = (
         "\n".join(
@@ -54,9 +54,9 @@ async def execute(agent=None, args: dict | None = None) -> dict:
         issue=issue, facts=facts, evidence_block=evidence_block
     )
 
-    client = AsyncAnthropic(api_key=settings.anthropic_api_key)
+    client = get_client()
     resp = await client.messages.create(
-        model=settings.anthropic_model_default,
+        model="default",
         max_tokens=2048,
         messages=[{"role": "user", "content": prompt}],
     )

@@ -74,12 +74,12 @@ async def rerank(
     """
     if not candidates:
         return []
-    if not _settings.anthropic_api_key or len(candidates) <= top_k:
+    if not _settings.llm_api_key() or len(candidates) <= top_k:
         return candidates[:top_k]
 
-    from anthropic import AsyncAnthropic
+    from backend.llm import get_client
 
-    client = AsyncAnthropic(api_key=_settings.anthropic_api_key)
+    client = get_client()
 
     numbered = "\n".join(
         f"<candidate index={i}>\n{_candidate_text(c)}\n</candidate>" for i, c in enumerate(candidates)
@@ -92,7 +92,7 @@ async def rerank(
 
     try:
         resp = await client.messages.create(
-            model=_settings.anthropic_model_fast,
+            model="fast",
             max_tokens=512,
             system=_SYSTEM,
             messages=[{"role": "user", "content": user_msg}],

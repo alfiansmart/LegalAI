@@ -54,14 +54,14 @@ async def decompose(query: str, *, max_subqueries: int = 4) -> list[str]:
         settings = get_settings()
     except Exception:  # noqa: BLE001 — keeps callers alive without pydantic in test env
         return [query]
-    if not settings.anthropic_api_key:
+    if not settings.llm_api_key():
         return [query]
-    from anthropic import AsyncAnthropic
+    from backend.llm import get_client
 
-    client = AsyncAnthropic(api_key=settings.anthropic_api_key)
+    client = get_client()
     try:
         resp = await client.messages.create(
-            model=settings.anthropic_model_fast,
+            model="fast",
             max_tokens=400,
             messages=[{"role": "user", "content": _PROMPT.format(q=query)}],
         )

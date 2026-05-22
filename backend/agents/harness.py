@@ -67,19 +67,22 @@ class AgentHarness:
         as_of: str | None = None,
         plan_mode: bool = False,
     ) -> HarnessResult:
-        if not _settings.anthropic_api_key:
+        if not _settings.llm_api_key():
             return HarnessResult(
                 session_id=self.session_id,
                 reply=(
-                    "ANTHROPIC_API_KEY belum dikonfigurasi. Set di `.env` "
-                    "untuk mengaktifkan agent."
+                    f"LLM_PROVIDER={_settings.llm_provider} dipilih, tetapi "
+                    "API key untuk provider tersebut belum dikonfigurasi. "
+                    "Set kredensial di `.env` untuk mengaktifkan agent."
                 ),
             )
 
-        # Lazy import — keeps test runs lean.
-        from anthropic import AsyncAnthropic
+        # Provider-agnostic client. The facade mirrors the AsyncAnthropic
+        # surface, so the rest of the loop is unchanged regardless of
+        # whether we're talking to Anthropic, Azure OpenAI, or OpenRouter.
+        from backend.llm import get_client
 
-        client = AsyncAnthropic(api_key=_settings.anthropic_api_key)
+        client = get_client()
 
         await self._load_matter()
         system_blocks = self._build_system()

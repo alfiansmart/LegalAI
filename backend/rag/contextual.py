@@ -66,12 +66,12 @@ async def contextualise_chunks(
     breadcrumbs = breadcrumbs or [""] * n
     parent_summaries = parent_summaries or [""] * n
 
-    if not _settings.anthropic_api_key:
+    if not _settings.llm_api_key():
         return [_fallback_blurb(b, p) for b, p in zip(breadcrumbs, parent_summaries)]
 
-    from anthropic import AsyncAnthropic
+    from backend.llm import get_client
 
-    client = AsyncAnthropic(api_key=_settings.anthropic_api_key)
+    client = get_client()
     sem = asyncio.Semaphore(concurrency)
     blurbs: list[str] = [""] * n
 
@@ -84,7 +84,7 @@ async def contextualise_chunks(
         async with sem:
             try:
                 resp = await client.messages.create(
-                    model=_settings.anthropic_model_fast,
+                    model="fast",
                     max_tokens=120,
                     system=_PROMPT,
                     messages=[

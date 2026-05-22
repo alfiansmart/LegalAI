@@ -66,10 +66,10 @@ Fokus revisi pada span ini saja (offset {start}–{end}):
 
 
 async def execute(agent=None, args: dict | None = None) -> dict:
-    from anthropic import AsyncAnthropic
     from sqlalchemy import select
 
     from backend.agents import artifacts as A
+    from backend.llm import get_client
     from backend.config import get_settings
     from backend.db import models
     from backend.db.session import session_scope
@@ -103,12 +103,12 @@ async def execute(agent=None, args: dict | None = None) -> dict:
         )
 
     settings = get_settings()
-    if not settings.anthropic_api_key:
-        return {"status": "error", "message": "ANTHROPIC_API_KEY not set"}
+    if not settings.llm_api_key():
+        return {"status": "error", "message": "LLM provider API key not configured"}
 
-    client = AsyncAnthropic(api_key=settings.anthropic_api_key)
+    client = get_client()
     resp = await client.messages.create(
-        model=settings.anthropic_model_default,
+        model="default",
         max_tokens=4096,
         messages=[
             {

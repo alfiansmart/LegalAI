@@ -49,10 +49,9 @@ pembayaran"). Boleh kosong jika deskripsi sudah lengkap.
 
 
 async def execute(agent=None, args: dict | None = None) -> dict:
-    from anthropic import AsyncAnthropic
-
     from backend.agents import artifacts as A
     from backend.config import get_settings
+    from backend.llm import get_client
     from backend.documents import service as doc_service
 
     args = args or {}
@@ -64,12 +63,12 @@ async def execute(agent=None, args: dict | None = None) -> dict:
     title_hint = args.get("title")
 
     settings = get_settings()
-    if not settings.anthropic_api_key:
-        return {"status": "error", "message": "ANTHROPIC_API_KEY not set"}
+    if not settings.llm_api_key():
+        return {"status": "error", "message": "LLM provider API key not configured"}
 
-    client = AsyncAnthropic(api_key=settings.anthropic_api_key)
+    client = get_client()
     resp = await client.messages.create(
-        model=settings.anthropic_model_default,
+        model="default",
         max_tokens=6000,
         messages=[
             {

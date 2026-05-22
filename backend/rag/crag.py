@@ -81,12 +81,12 @@ async def grade(question: str, hits: list[dict]) -> Grade:
             return Grade(Verdict.PARTIAL, f"middling top score {top:.2f}")
         return Grade(Verdict.SUFFICIENT, "ok")
 
-    from anthropic import AsyncAnthropic
+    from backend.llm import get_client
 
-    client = AsyncAnthropic(api_key=api_key)
+    client = get_client()
     try:
         resp = await client.messages.create(
-            model=_model_fast(),
+            model="fast",
             max_tokens=400,
             messages=[
                 {
@@ -117,16 +117,16 @@ async def grade(question: str, hits: list[dict]) -> Grade:
 
 
 def _api_key() -> str | None:
+    """Return the active provider's key, or None when running offline.
+
+    Wrapped in try/except so the heuristic path keeps working in test
+    environments that don't ship pydantic.
+    """
     try:
         from backend.config import get_settings
-        return get_settings().anthropic_api_key
-    except Exception:  # noqa: BLE001 — keeps the heuristic path alive without pydantic
+        return get_settings().llm_api_key()
+    except Exception:  # noqa: BLE001
         return None
-
-
-def _model_fast() -> str:
-    from backend.config import get_settings
-    return get_settings().anthropic_model_fast
 
 
 _JSON_RE = re.compile(r"\{.*\}", re.DOTALL)

@@ -37,9 +37,9 @@ Kontrak:
 
 
 async def execute(agent=None, args: dict | None = None) -> dict:
-    from anthropic import AsyncAnthropic
     from backend.config import get_settings
     from backend.documents import service
+    from backend.llm import get_client
 
     args = args or {}
     raw_text: str | None = args.get("raw_text")
@@ -50,8 +50,8 @@ async def execute(agent=None, args: dict | None = None) -> dict:
         return {"status": "error", "message": "need raw_text or document_id"}
 
     settings = get_settings()
-    if not settings.anthropic_api_key:
-        return {"status": "error", "message": "ANTHROPIC_API_KEY not set"}
+    if not settings.llm_api_key():
+        return {"status": "error", "message": "LLM provider API key not configured"}
 
     compliance = args.get("compliance_against") or []
     compliance_block = (
@@ -65,9 +65,9 @@ async def execute(agent=None, args: dict | None = None) -> dict:
         compliance_block=compliance_block,
     )
 
-    client = AsyncAnthropic(api_key=settings.anthropic_api_key)
+    client = get_client()
     resp = await client.messages.create(
-        model=settings.anthropic_model_default,
+        model="default",
         max_tokens=4096,
         messages=[{"role": "user", "content": prompt}],
     )

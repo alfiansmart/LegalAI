@@ -40,7 +40,7 @@ Hunks:
 
 
 async def execute(agent=None, args: dict | None = None) -> dict:
-    from anthropic import AsyncAnthropic
+    from backend.llm import get_client
 
     args = args or {}
     head_id = args.get("head_document_id")
@@ -78,15 +78,15 @@ async def execute(agent=None, args: dict | None = None) -> dict:
 
     settings = get_settings()
     commentary: dict[int, dict] = {}
-    if settings.anthropic_api_key and interesting:
-        client = AsyncAnthropic(api_key=settings.anthropic_api_key)
+    if settings.llm_api_key() and interesting:
+        client = get_client()
         # Truncate each hunk to keep the prompt sane.
         slim = [
             {**h, "base": (h["base"] or "")[:400], "head": (h["head"] or "")[:400]}
             for h in interesting[:30]
         ]
         resp = await client.messages.create(
-            model=settings.anthropic_model_default,
+            model="default",
             max_tokens=2048,
             messages=[
                 {

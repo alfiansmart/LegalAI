@@ -56,10 +56,10 @@ _CLOSING_RE = re.compile(
 
 
 async def execute(agent=None, args: dict | None = None) -> dict:
-    from anthropic import AsyncAnthropic
     from sqlalchemy import select
 
     from backend.agents import artifacts as A
+    from backend.llm import get_client
     from backend.config import get_settings
     from backend.db import models
     from backend.db.session import session_scope
@@ -81,10 +81,10 @@ async def execute(agent=None, args: dict | None = None) -> dict:
     insert_at = _find_insertion_offset(full_doc, after_section)
 
     settings = get_settings()
-    if not settings.anthropic_api_key:
-        return {"status": "error", "message": "ANTHROPIC_API_KEY not set"}
+    if not settings.llm_api_key():
+        return {"status": "error", "message": "LLM provider API key not configured"}
 
-    client = AsyncAnthropic(api_key=settings.anthropic_api_key)
+    client = get_client()
     # Send only a 4K window of context around the insertion point so the
     # model sees neighbouring style without paying for the whole doc.
     ctx_start = max(0, insert_at - 2000)
@@ -92,7 +92,7 @@ async def execute(agent=None, args: dict | None = None) -> dict:
     context = full_doc[ctx_start:ctx_end]
 
     resp = await client.messages.create(
-        model=settings.anthropic_model_default,
+        model="default",
         max_tokens=2048,
         messages=[
             {

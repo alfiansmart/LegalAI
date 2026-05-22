@@ -471,11 +471,9 @@ async def _summarise(sem: asyncio.Semaphore, title: str, basis: str, target: dic
     try:
         from backend.config import get_settings
 
-        settings = get_settings()
-        api_key = settings.anthropic_api_key
-        model = settings.anthropic_model_fast
+        api_key = get_settings().llm_api_key()
     except Exception:  # noqa: BLE001
-        api_key, model = None, ""
+        api_key = None
 
     if not api_key:
         target["summary"] = basis[:220].strip()
@@ -483,11 +481,11 @@ async def _summarise(sem: asyncio.Semaphore, title: str, basis: str, target: dic
 
     async with sem:
         try:
-            from anthropic import AsyncAnthropic
+            from backend.llm import get_client
 
-            client = AsyncAnthropic(api_key=api_key)
+            client = get_client()
             resp = await client.messages.create(
-                model=model,
+                model="fast",
                 max_tokens=220,
                 messages=[
                     {
