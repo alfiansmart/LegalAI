@@ -1,14 +1,30 @@
-"""OpenAI-compatible provider (Azure OpenAI + OpenRouter).
+"""OpenAI-compatible provider (OpenAI / Azure OpenAI / OpenRouter / Ollama).
 
 Translates Anthropic-shaped requests to OpenAI Chat Completions and
 back, so existing call sites can swap provider via env var without
-any code change. The two flavours share most of the translation
-layer; they differ only in client construction:
+any code change. All four flavours share the translation layer; they
+differ only in client construction:
 
+  - `openai`     — AsyncOpenAI(api_key) — vanilla api.openai.com.
   - `azure`      — AsyncAzureOpenAI(api_key, endpoint, api_version),
                     `model=` is the *deployment name*.
   - `openrouter` — AsyncOpenAI(api_key, base_url=openrouter), model
-                    strings like "anthropic/claude-3.5-sonnet".
+                    strings like "anthropic/claude-3.5-sonnet". Adds
+                    HTTP-Referer + X-Title attribution headers.
+  - `ollama`     — AsyncOpenAI(base_url=ollama, api_key="ollama"),
+                    model strings like "qwen2.5:14b". No real key
+                    needed (Ollama runs locally) but the SDK insists
+                    on a non-empty value.
+
+Caveats per flavour:
+  - Ollama models vary widely in tool-use support. Newer models
+    (qwen2.5, qwen2.5-coder, llama3.1) handle OpenAI-format tools.
+    Older ones may ignore the `tools` parameter — verify before
+    promoting Ollama to your default provider.
+  - Ollama's context window is whatever the model declares (often
+    4-32K); LegalAI's long-doc CAG fallback caps at 150K. Trim the
+    matter's documents or stick with chunked retrieval on small-window
+    local models.
 
 Translation rules:
 
@@ -68,13 +84,17 @@ _STOP_MAP = {
 
 
 class OpenAILikeClient:
-    def __init__(self, *, flavor: Literal["azure", "openrouter"]) -> None:
+    def __init__(
+        self, *, flavor: Literal["openai", "azure", "openrouter", "ollama"]
+    ) -> None:
         self.flavor = flavor
         self.messages = _MessagesAPI(flavor=flavor)
 
 
 class _MessagesAPI:
-    def __init__(self, *, flavor: Literal["azure", "openrouter"]) -> None:
+    def __init__(
+        self, *, flavor: Literal["openai", "azure", "openrouter", "ollama"]
+    ) -> None:
         self.flavor = flavor
 
     async def create(self, **kwargs: Any) -> LLMResponse:
@@ -112,6 +132,15 @@ class _MessagesAPI:
                     "HTTP-Referer": settings.openrouter_referer,
                     "X-Title": settings.openrouter_title,
                 }
+            elif self.flavor == "ollama":
+                # Many Ollama models don't yet implement OpenAI's
+                # `tools` parameter; passing it returns an error. We
+                # let the call go through unchanged — admins picking
+                # Ollama should set their default model to one that
+                # supports tools (qwen2.5, llama3.1, …) or use the
+                # workspace's task buttons (which call skills directly
+                # and don't rely on the LLM tool loop).
+                pass
             raw = await client.chat.completions.create(**call_kwargs)
         except Exception as e:  # noqa: BLE001
             _log.warning("openai-like create failed: %s", e)
@@ -125,27 +154,58 @@ class _MessagesAPI:
 
 
 def _build_client(flavor: str, settings):
-    from openai import AsyncAzureOpenAI, AsyncOpenAI
-
-    if flavor == "azure":
+    # Validate configuration *before* importing the openai SDK so a
+    # missing-key error surfaces with a clear message even in
+    # environments that haven't installed the package yet.
+    if flavor == "openai":
+        if not settings.openai_api_key:
+            raise RuntimeError(
+                "OpenAI selected but OPENAI_API_KEY is not set. Set the env "
+                "var, or switch LLM_PROVIDER (anthropic / azure / openrouter "
+                "/ ollama)."
+            )
+    elif flavor == "azure":
         if not (settings.azure_openai_api_key and settings.azure_openai_endpoint):
             raise RuntimeError(
                 "Azure OpenAI selected but AZURE_OPENAI_API_KEY / "
                 "AZURE_OPENAI_ENDPOINT are not set."
             )
+    elif flavor == "openrouter":
+        if not settings.openrouter_api_key:
+            raise RuntimeError(
+                "OpenRouter selected but OPENROUTER_API_KEY is not set."
+            )
+    elif flavor == "ollama":
+        pass  # no credential to validate
+    else:
+        raise ValueError(f"unsupported openai flavour {flavor!r}")
+
+    from openai import AsyncAzureOpenAI, AsyncOpenAI
+
+    if flavor == "openai":
+        kwargs: dict[str, Any] = {"api_key": settings.openai_api_key}
+        if settings.openai_base_url:
+            kwargs["base_url"] = settings.openai_base_url
+        if settings.openai_organization:
+            kwargs["organization"] = settings.openai_organization
+        return AsyncOpenAI(**kwargs)
+    if flavor == "azure":
         return AsyncAzureOpenAI(
             api_key=settings.azure_openai_api_key,
             azure_endpoint=settings.azure_openai_endpoint,
             api_version=settings.azure_openai_api_version,
         )
     if flavor == "openrouter":
-        if not settings.openrouter_api_key:
-            raise RuntimeError("OpenRouter selected but OPENROUTER_API_KEY is not set.")
         return AsyncOpenAI(
             api_key=settings.openrouter_api_key,
             base_url=settings.openrouter_base_url,
         )
-    raise ValueError(f"unsupported openai flavour {flavor!r}")
+    # ollama — runs locally, doesn't authenticate; the SDK demands a
+    # non-empty api_key so we pass the sentinel.
+    return AsyncOpenAI(
+        api_key=settings.ollama_api_key or "ollama",
+        base_url=settings.ollama_base_url,
+    )
 
 
 # ---------------------------------------------------------------------------

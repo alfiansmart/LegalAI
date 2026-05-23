@@ -230,3 +230,66 @@ def test_round_trip_assistant_tool_use_then_tool_result():
     assert roles == ["system", "user", "assistant", "tool"]
     assert out[3]["tool_call_id"] == "toolu_1"
     assert out[3]["content"] == "result text"
+
+
+# ---------- _build_client --------------------------------------------------
+
+
+class _S:
+    """Minimal Settings stand-in for client-construction tests."""
+
+    def __init__(self, **kw):
+        self.openai_api_key = None
+        self.openai_base_url = None
+        self.openai_organization = None
+        self.azure_openai_api_key = None
+        self.azure_openai_endpoint = None
+        self.azure_openai_api_version = "2024-10-21"
+        self.openrouter_api_key = None
+        self.openrouter_base_url = "https://openrouter.ai/api/v1"
+        self.ollama_api_key = "ollama"
+        self.ollama_base_url = "http://localhost:11434/v1"
+        for k, v in kw.items():
+            setattr(self, k, v)
+
+
+def test_build_openai_requires_api_key():
+    import pytest
+
+    with pytest.raises(RuntimeError, match="OPENAI_API_KEY"):
+        provider._build_client("openai", _S())
+
+
+def test_build_azure_requires_endpoint_and_key():
+    import pytest
+
+    with pytest.raises(RuntimeError, match="AZURE_OPENAI"):
+        provider._build_client("azure", _S(azure_openai_api_key="x"))
+    with pytest.raises(RuntimeError, match="AZURE_OPENAI"):
+        provider._build_client("azure", _S(azure_openai_endpoint="https://x"))
+
+
+def test_build_openrouter_requires_key():
+    import pytest
+
+    with pytest.raises(RuntimeError, match="OPENROUTER_API_KEY"):
+        provider._build_client("openrouter", _S())
+
+
+def test_build_ollama_uses_sentinel_when_key_missing():
+    """Ollama doesn't authenticate; the SDK insists on a non-empty
+    key so we pass 'ollama' rather than asking the user to set one."""
+    import pytest
+
+    pytest.importorskip("openai")
+    client = provider._build_client("ollama", _S(ollama_api_key=""))
+    # We just verify the call returns a client; AsyncOpenAI's internals
+    # are out of scope. The api_key was substituted internally.
+    assert client is not None
+
+
+def test_build_unknown_flavor_raises():
+    import pytest
+
+    with pytest.raises(ValueError, match="unsupported openai flavour"):
+        provider._build_client("bogus", _S())

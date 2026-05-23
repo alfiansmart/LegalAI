@@ -56,7 +56,9 @@ def get_client() -> LLMClient:
         from backend.llm.anthropic_provider import AnthropicClient
 
         return AnthropicClient()
-    if provider in {"azure", "openrouter"}:
+    if provider in {"azure", "openai", "openrouter", "ollama"}:
+        # Four OpenAI-Chat-Completions-shaped backends share one
+        # translation layer; they differ only in client construction.
         from backend.llm.openai_provider import OpenAILikeClient
 
         return OpenAILikeClient(flavor=provider)
