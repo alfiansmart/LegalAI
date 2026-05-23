@@ -375,7 +375,11 @@ async def _resolve_suggestion(
     suggestion_id: int, ident: identity.Identity, *, accept: bool
 ) -> dict:
     from backend.documents import service as doc_service
+    from backend.documents.splice import StaleSuggestionError, apply_suggestion
 
+    # ── Phase 1: read + RBAC check + extract the splice inputs ──────────
+    # No writes here — if we crash later (validation, splice failure) the
+    # suggestion stays pending and the user can retry.
     async with session_scope() as s:
         sug = await s.get(models.Suggestion, suggestion_id)
         if sug is None:
@@ -385,28 +389,49 @@ async def _resolve_suggestion(
         matter_id = await _matter_id_for_document(sug.document_id)
         if matter_id is not None:
             await identity.require_matter_access(matter_id, ident, minimum="editor")
+        document_id = sug.document_id
+        range_start = sug.range_start
+        range_end = sug.range_end
+        base_text = sug.base_text
+        proposed_text = sug.proposed_text
+
+    # ── Phase 2: on accept, validate the suggestion still applies and
+    # write the new document version BEFORE marking resolved. If
+    # apply_suggestion raises (range out of bounds / base_text drift),
+    # the suggestion remains pending — no DB write happens.
+    if accept:
+        current = await doc_service.latest_content(document_id)
+        if current is None:
+            raise HTTPException(404, "document not found")
+        try:
+            new_content = apply_suggestion(
+                current=current,
+                range_start=range_start,
+                range_end=range_end,
+                base_text=base_text,
+                proposed_text=proposed_text,
+            )
+        except StaleSuggestionError as e:
+            raise HTTPException(409, e.message)
+        await doc_service.new_version(
+            document_id, new_content, note=f"accepted suggestion #{suggestion_id}"
+        )
+
+    # ── Phase 3: flip the suggestion status. By now any accept-side
+    # validation has succeeded, so this is the only step still able to
+    # fail — and if it does, we've already created the new version,
+    # which is recoverable (the user can manually mark it resolved).
+    async with session_scope() as s:
+        sug = await s.get(models.Suggestion, suggestion_id)
+        if sug is None:
+            # Vanished between Phase 1 and Phase 3 — should be impossible
+            # in normal use but guard against it.
+            raise HTTPException(404, "suggestion not found")
         sug.status = (
             models.SuggestionStatus.ACCEPTED if accept else models.SuggestionStatus.REJECTED
         )
         sug.resolved_by = ident.user_id
         sug.resolved_at = datetime.now(timezone.utc)
-        document_id = sug.document_id
-        range_start = sug.range_start
-        range_end = sug.range_end
-        proposed_text = sug.proposed_text
-
-    if accept:
-        current = await doc_service.latest_content(document_id)
-        if current is not None:
-            try:
-                new_content = current[:range_start] + proposed_text + current[range_end:]
-                await doc_service.new_version(
-                    document_id, new_content, note=f"accepted suggestion #{suggestion_id}"
-                )
-            except Exception as e:  # noqa: BLE001
-                # Don't fail the accept just because the rewrite failed —
-                # the status change still happened; surface the issue.
-                pass
 
     await audit.record(
         action="suggestion.accept" if accept else "suggestion.reject",
